@@ -38,7 +38,8 @@ class WorkSpace(BaseModel):
             storage_path: Optional[str] = None,
             observers: Optional[List[WorkspaceObserver]] = None,
             use_default_observer: bool = True,
-            clear_existing: bool = False
+            clear_existing: bool = False,
+            repository: Optional[ArtifactRepository] = None
     ):
         super().__init__()
         self.workspace_id = workspace_id or str(uuid.uuid4())
@@ -47,8 +48,11 @@ class WorkSpace(BaseModel):
         self.updated_at = self.created_at
 
         # Initialize repository first
-        storage_dir = storage_path or os.path.join("data", "workspaces", self.workspace_id)
-        self.repository = LocalArtifactRepository(storage_dir)
+        if repository:
+            self.repository = repository
+        else:
+            storage_dir = storage_path or os.path.join("data", "workspaces", self.workspace_id)
+            self.repository = LocalArtifactRepository(storage_dir)
 
         # Initialize artifacts and metadata
         if clear_existing:
