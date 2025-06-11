@@ -1,0 +1,26 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "artifact_001",
+      "type": "artifact",
+      "version": {
+        "hash": "e4114394ca07a57fea465936b5c80d69e7754c75674521dd07cad9d8e77d3036",
+        "timestamp": 1749654586.2064168,
+        "metadata": {
+          "workspace_id": "demo"
+        }
+      }
+    }
+  ],
+  "versions": [
+    {
+      "hash": "67b60981fd59b82e1c50826d15af5449fb6dcd53017aa7a2e31ade4df88a4b76",
+      "timestamp": 1749654586.20785,
+      "metadata": {
+        "workspace_id": "demo",
+        "type": "workspace"
+      },
+      "version_id": "b8a3fd3d-434f-437b-b7f7-9de40d46acc8"
+    }
+  ]
+}

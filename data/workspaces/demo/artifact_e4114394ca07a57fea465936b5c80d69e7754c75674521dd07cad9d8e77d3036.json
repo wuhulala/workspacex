@@ -1,0 +1,18 @@
+{
+  "artifact_id": "artifact_001",
+  "artifact_type": "TEXT",
+  "content": null,
+  "metadata": {},
+  "created_at": "2025-06-11T23:09:46.205681",
+  "updated_at": "2025-06-11T23:09:46.205753",
+  "status": "DRAFT",
+  "version_count": 1,
+  "version_history": [
+    {
+      "timestamp": "2025-06-11T23:09:46.205753",
+      "description": "Initial version",
+      "content": null,
+      "status": "DRAFT"
+    }
+  ]
+}
