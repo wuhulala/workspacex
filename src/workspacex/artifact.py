@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
 from enum import Enum, auto
-from typing import Dict, Any, Optional, ClassVar
+from typing import Dict, Any, Optional, ClassVar, List, TYPE_CHECKING
 from pydantic import Field, field_validator, model_validator
+import os
 
 from workspacex.base import Output
 
@@ -25,6 +26,7 @@ class ArtifactType(Enum):
     WEB_PAGES = "WEB_PAGES"
     DIR = "DIR"
     CUSTOM = "CUSTOM"
+    NOVEL = "NOVEL"
 
 
 
@@ -53,6 +55,7 @@ class Artifact(Output):
     current_version: str = Field(default="", description="Current version of the artifact")
     version_history: list = Field(default_factory=list, description="History of versions for the artifact")
     create_file: bool = Field(default=False, description="Flag to indicate if a file should be created")
+    sublist: List['Artifact'] = Field(default_factory=list, description="List of sub-artifacts (children)")
 
     # Use model_validator for initialization logic
     @model_validator(mode='after')
@@ -130,7 +133,11 @@ class Artifact(Output):
         return False
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert artifact to dictionary"""
+        """
+        Convert artifact to dictionary, including sublist.
+        Returns:
+            Dictionary representation of the artifact
+        """
         return {
             "artifact_id": self.artifact_id,
             "artifact_type": self.artifact_type.value,
@@ -139,12 +146,20 @@ class Artifact(Output):
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "status": self.status.name,
-            "version_count": len(self.version_history)
+            # "version_count": len(self.version_history),
+            # "version_history": self.version_history,
+            # "sublist": [sub.to_dict() for sub in self.sublist] if self.sublist else []
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Artifact":
-        """Create an artifact instance from a dictionary"""
+        """
+        Create an artifact instance from a dictionary, including sublist.
+        Args:
+            data: Dictionary data
+        Returns:
+            Artifact instance
+        """
         artifact_type = ArtifactType(data["artifact_type"])
         artifact = cls(
             artifact_type=artifact_type,
@@ -155,9 +170,103 @@ class Artifact(Output):
         artifact.created_at = data["created_at"]
         artifact.updated_at = data["updated_at"]
         artifact.status = ArtifactStatus[data["status"]]
-
         # If version history exists, restore it as well
         if "version_history" in data:
             artifact.version_history = data["version_history"]
-
+        # Restore sublist if present
+        if "sublist" in data and data["sublist"]:
+            artifact.sublist = [cls.from_dict(sub) for sub in data["sublist"]]
         return artifact
+
+    def add_subartifact(self, subartifact: 'Artifact') -> None:
+        """
+        Add a subartifact (child artifact) to this artifact.
+        Args:
+            subartifact: The subartifact to add
+        """
+        self.sublist.append(subartifact)
+
+class NovelArtifact(Artifact):
+    """
+    Artifact for handling novels. Loads a novel file, splits it by chapters, and uploads each chapter as a separate file in the artifact's folder.
+    """
+    novel_file_path: str = Field(..., description="Path to the novel file")
+    chapters: List[str] = Field(default_factory=list, description="List of chapter contents")
+    chapter_titles: List[str] = Field(default_factory=list, description="List of chapter titles")
+
+    def __init__(
+        self,
+        artifact_type: ArtifactType,
+        novel_file_path: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        artifact_id: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Initialize a NovelArtifact, load and split the novel file, and create subartifacts for each chapter.
+        """
+        chapters, chapter_titles = self._load_and_split_novel(novel_file_path)
+        super().__init__(
+            artifact_id=artifact_id or str(uuid.uuid4()),
+            artifact_type=artifact_type,
+            content=None,
+            metadata=metadata or {},
+            novel_file_path=novel_file_path,
+            chapters=chapters,
+            chapter_titles=chapter_titles,
+            **kwargs
+        )
+        # Create subartifacts for each chapter
+        for idx, (title, chapter) in enumerate(zip(chapter_titles, chapters)):
+            sub_meta = {
+                "chapter_title": title,
+                "chapter_index": idx + 1
+            }
+            subartifact = Artifact(
+                artifact_id=f"chapter_{idx+1}_{title.replace(' ', '')}",
+                artifact_type=ArtifactType.TEXT,
+                content=chapter,
+                metadata=sub_meta
+            )
+            self.add_subartifact(subartifact)
+
+    @staticmethod
+    def _load_and_split_novel(novel_file_path: str) -> tuple[str, List[str], List[str]]:
+        """
+        Load the novel file and split it into chapters.
+        Args:
+            novel_file_path: Path to the novel file
+        Returns:
+            Tuple of (full content, list of chapters, list of chapter titles)
+        """
+        with open(novel_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        import re
+        # Split by chapter heading, e.g., "第001章" or "第1章"
+        pattern = r'(第[0-9一二三四五六七八九十百千]+章[\s\S]*?)(?=第[0-9一二三四五六七八九十百千]+章|$)'
+        chapters = re.findall(pattern, content)
+        # Extract chapter titles
+        title_pattern = r'(第[0-9一二三四五六七八九十百千]+章[^\n]*)'
+        chapter_titles = re.findall(title_pattern, content)
+        return chapters, chapter_titles
+
+    def save_chapters_to_folder(self, base_folder: str) -> List[str]:
+        """
+        Save each chapter as a separate file in a folder named after the artifact_id.
+        Args:
+            base_folder: The base directory to save the artifact folder in
+        Returns:
+            List of file paths for the saved chapters
+        """
+        artifact_folder = os.path.join(base_folder, self.artifact_id)
+        os.makedirs(artifact_folder, exist_ok=True)
+        file_paths = []
+        for idx, (title, chapter) in enumerate(zip(self.chapter_titles, self.chapters)):
+            # Clean title for filename
+            safe_title = title.replace(' ', '_').replace('\n', '').replace('/', '_')
+            filename = f"chapter_{idx+1:03d}_{safe_title}.txt"
+            file_path = os.path.join(artifact_folder, filename)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(chapter)
+            file_paths.append(file_path)
+        return file_paths

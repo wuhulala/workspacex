@@ -8,80 +8,157 @@ from typing import Dict, Any, Optional, List, Literal
 
 from pydantic import BaseModel
 
+from workspacex.artifact import Artifact, ArtifactType
+
 
 class ArtifactRepository:
-    def __init__(self):
+    def __init__(self, storage_path: str):
         """
         Initialize the artifact repository
+        Args:
+            storage_path: Directory path for storing data
         """
-        pass
+        self.storage_path = Path(storage_path)
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        self.index_path = self.storage_path / "index.json"
+        self.versions_dir = self.storage_path / "versions"
+        self.versions_dir.mkdir(parents=True, exist_ok=True)
 
-    def _load_index(self) -> Dict[str, Any]:
-        """Load or create index file"""
-        pass
+    def _artifact_dir(self, artifact_id: str) -> Path:
+        """
+        Get the directory path for an artifact.
+        Args:
+            artifact_id: Artifact ID
+        Returns:
+            Path to the artifact directory
+        """
+        return self.storage_path / "artifacts" / artifact_id
+
+    def _sub_dir(self, artifact_id: str, sub_id: str) -> Path:
+        """
+        Get the directory path for a sub-artifact.
+        """
+        return self._artifact_dir(artifact_id) / sub_id
+
+    def _sub_data_path(self, artifact_id: str, sub_id: str, ext: str = "txt") -> Path:
+        """
+        Get the path for a sub-artifact's data file.
+        """
+        return self._sub_dir(artifact_id, "sublist") / f"{sub_id}.{ext}"
+
+    def _artifact_index_path(self, artifact_id: str) -> Path:
+        """
+        Get the path for the main artifact's index file.
+        """
+        return self._artifact_dir(artifact_id) / "index.json"
 
     def _save_index(self, index: Dict[str, Any]) -> None:
-        """Save index to file"""
+        """
+        Save index to file and version it.
+        Args:
+            index: Index dictionary
+        """
+        # Save current index as versioned history
+        if self.index_path.exists():
+            version_name = f"index_his_{int(time.time())}.json"
+            version_path = self.versions_dir / version_name
+            self.index_path.replace(version_path)
+        with open(self.index_path, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2, ensure_ascii=False)
+
+    def _load_index(self) -> Dict[str, Any]:
+        """
+        Load or create index file
+        Returns:
+            Index dictionary
+        """
+        if self.index_path.exists():
+            with open(self.index_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            index = {}
+            self._save_index(index)
+            return index
+
+    def retrieve_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
         pass
 
-    def _compute_content_hash(self, data: Any) -> str:
+    def store_workspace(self, workspace_meta: dict) -> None:
         """
-        Calculate the hash value of the content as a storage identifier
+        Store the workspace information in index.json, versioning the previous index.
+
+        index.json sample:
+        {
+            "workspace": {
+                    "id": "workspace_id",
+                    "name": "workspace_name",
+                    "created_at": "2021-01-01T00:00:00Z",
+                    "updated_at": "2021-01-01T00:00:00Z",
+                    "metadata": {
+                        "key": "value"
+                    }
+                    "artifacts": [
+                        {
+                            "id": "artifact_id",
+                            "name": "artifact_name",
+                            "created_at": "2021-01-01T00:00:00Z",
+                            "updated_at": "2021-01-01T00:00:00Z",
+                        }
+                    ]
+
+            },
+            "versions": [
+                {
+                    "id": "version_id",
+                    "created_at": "2021-01-01T00:00:00Z",
+                    "updated_at": "2021-01-01T00:00:00Z",
+                }
+            ]
+        }
 
         Args:
-            data: Data to be stored
-
+            workspace: WorkSpace object (should not include sublists)
         Returns:
-            SHA-256 hash value of the content
+            None
         """
-        pass
+        index = self._load_index()
+        index["workspace"] = workspace_meta
+        self._save_index(index)
 
-    def store(self,
-              artifact_id: str,
-              type: Literal['artifact', 'workspace'],
-              data: Dict[str, Any],
-              metadata: Optional[Dict[str, Any]] = None
-              ) -> str:
+    def store_artifact(self, artifact: "Artifact") -> None:
         """
-        Store artifact and return its version identifier
-
+        Store an artifact and its sub-artifacts in the file system.
         Args:
-            artifact_id: Unique identifier of the artifact
-            data: Data to be stored
-            metadata: Optional metadata
-
+            artifact: Artifact object (may include sub-artifacts)
         Returns:
-            Version identifier
+            None
         """
-        pass
-
-    def retrieve(self, version_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve artifact based on version ID
-
-        Args:
-            version_id: Version identifier
-
-        Returns:
-            Stored data, or None if it doesn't exist
-        """
-        pass
-
-    def retrieve_latest_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
-        pass
-
-    def get_versions(self, artifact_id: str) -> List[Dict[str, Any]]:
-        """
-        Get information about all versions of an artifact
-
-        Args:
-            artifact_id: Artifact identifier
-
-        Returns:
-            List of version information
-        """
-        pass
-
+        artifact_id = artifact.artifact_id
+        artifact_dir = self._artifact_dir(artifact_id)
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        sub_artifacts = getattr(artifact, "sub_artifacts", [])
+        # Prepare a list for metadata (with content cleared for text types)
+        sub_artifacts_meta = []
+        for sub in artifact.sublist:
+            sub_id = sub.artifact_id
+            sub_type = sub.artifact_type
+            sub_dir = self._sub_dir(artifact_id, sub_id)
+            sub_dir.mkdir(parents=True, exist_ok=True)
+            sub_meta = sub.to_dict()
+            if sub_type == ArtifactType.TEXT:
+                content = sub.content
+                data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
+                data_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(data_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                sub_meta["content"] = ""  # Clear content in metadata
+            sub_artifacts_meta.append(sub_meta)
+        # Save artifact metadata (without sub_artifacts' content) to index.json
+        artifact_meta = artifact.to_dict()
+        artifact_meta["sublist"] = sub_artifacts_meta
+        index_path = self._artifact_index_path(artifact_id)
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 
 
 class CommonEncoder(json.JSONEncoder):
@@ -102,168 +179,3 @@ class EnumDecoder(json.JSONDecoder):
                 parsed_json[key] = enum_value
         return parsed_json
 
-
-class LocalArtifactRepository(ArtifactRepository):
-    """Artifact storage layer: manages versioned artifacts through content-addressable storage"""
-
-    def __init__(self, storage_path: str):
-        """
-        Initialize the artifact repository
-        
-        Args:
-            storage_path: Directory path for storing data
-        """
-        super().__init__()
-        self.storage_path = Path(storage_path)
-        self.storage_path.mkdir(parents=True, exist_ok=True)
-        self.index_path = self.storage_path / "index.json"
-        self.index = self._load_index()
-
-    def _load_index(self) -> Dict[str, Any]:
-        """Load or create index file"""
-        if self.index_path.exists():
-            try:
-                with open(self.index_path, 'r') as f:
-                    return json.load(f)
-            except json.JSONDecodeError:
-                return {"artifacts": [], "versions": []}
-        else:
-            index = {"artifacts": [], "versions": []}
-            self._save_index(index)
-            return index
-
-    def _save_index(self, index: Dict[str, Any]) -> None:
-        """Save index to file"""
-        with open(self.index_path, 'w') as f:
-            json.dump(index, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
-
-    def _compute_content_hash(self, data: Any) -> str:
-        """
-        Calculate the hash value of the content as a storage identifier
-        
-        Args:
-            data: Data to be stored
-            
-        Returns:
-            SHA-256 hash value of the content
-        """
-        content = json.dumps(data, sort_keys=True, cls=CommonEncoder).encode('utf-8')
-        return hashlib.sha256(content).hexdigest()
-
-    def store(self,
-              artifact_id: str,
-              type: str,
-              data: Dict[str, Any],
-              metadata: Optional[Dict[str, Any]] = None
-              ) -> str:
-        """
-        Store artifact and return its version identifier
-        
-        Args:
-            artifact_id: Unique identifier of the artifact
-            data: Data to be stored
-            metadata: Optional metadata
-            
-        Returns:
-            Version identifier
-        """
-        # Calculate content hash
-        content_hash = self._compute_content_hash(data)
-
-        # Create version record
-        version = {
-            "hash": content_hash,
-            "timestamp": time.time(),
-            "metadata": metadata or {}
-        }
-
-        # Store content
-        content_path = self.storage_path / f"{type}_{content_hash}.json"
-        if not content_path.exists():
-            with open(content_path, 'w') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
-
-        # Update index
-        if type == 'artifact':
-            if artifact_id not in self.index["artifacts"]:
-                self.index["artifacts"].append({
-                    'artifact_id': artifact_id,
-                    'type': type,
-                    'version': version
-                })
-        elif type == 'workspace':
-            version['version_id'] = str(uuid.uuid4())
-
-            self.index["versions"].append(
-                version
-            )
-        self._save_index(self.index)
-
-        return "success"
-
-    def retrieve(self, version_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve artifact based on version ID
-        
-        Args:
-            version_id: Version identifier
-            
-        Returns:
-            Stored data, or None if it doesn't exist
-        """
-        for version in self.index["versions"]:
-            if version_id != version['version_id']:
-                continue
-            content_hash = version["hash"]
-            content_path = self.storage_path / f"workspace_{content_hash}.json"
-
-            if not content_path.exists():
-                return None
-
-            with open(content_path, 'r') as f:
-                return json.load(f)
-        return None
-
-    def retrieve_latest_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve artifact based on version ID
-
-        Args:
-            version_id: Version identifier
-
-        Returns:
-            Stored data, or None if it doesn't exist
-        """
-        for artifact in self.index["artifacts"]:
-            if artifact['artifact_id'] != artifact_id:
-                continue
-            content_hash = artifact["version"]["hash"]
-            content_path = self.storage_path / f"artifact_{content_hash}.json"
-
-            if not content_path.exists():
-                return None
-
-            with open(content_path, 'r') as f:
-                return json.load(f)
-        return None
-
-    def get_versions(self, artifact_id: str) -> List[Dict[str, Any]]:
-        """
-        Get information about all versions of an artifact
-        
-        Args:
-            artifact_id: Artifact identifier
-            
-        Returns:
-            List of version information
-        """
-        if artifact_id not in self.index["artifacts"]:
-            return []
-
-        versions = []
-        for version_id in self.index["artifacts"][artifact_id]:
-            version_info = self.index["versions"][version_id].copy()
-            version_info["id"] = version_id
-            versions.append(version_info)
-
-        return versions

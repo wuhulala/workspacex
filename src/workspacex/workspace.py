@@ -1,3 +1,4 @@
+import logging
 import os
 import traceback
 import uuid
@@ -6,9 +7,9 @@ from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from workspacex.artifact import ArtifactType, Artifact
+from workspacex.artifact import ArtifactType, Artifact, NovelArtifact
 from workspacex.code_artifact import CodeArtifact
-from workspacex.storage.artifact_repository import ArtifactRepository, LocalArtifactRepository
+from workspacex.storage.artifact_repository import ArtifactRepository
 from workspacex.observer import WorkspaceObserver, get_observer
 
 
@@ -52,7 +53,7 @@ class WorkSpace(BaseModel):
             self.repository = repository
         else:
             storage_dir = storage_path or os.path.join("data", "workspaces", self.workspace_id)
-            self.repository = LocalArtifactRepository(storage_dir)
+            self.repository = ArtifactRepository(storage_dir)
 
         # Initialize artifacts and metadata
         if clear_existing:
@@ -88,6 +89,8 @@ class WorkSpace(BaseModel):
             Dictionary containing workspace data if exists, None otherwise
         """
         try:
+            if not 'versions' in self.repository.index:
+                return None
             # Get workspace versions
             workspace_versions = self.repository.index['versions']
             if not workspace_versions:
@@ -168,17 +171,17 @@ class WorkSpace(BaseModel):
             artifact_type: Union[ArtifactType, str],
             artifact_id: Optional[str] = None,
             content: Optional[Any] = None,
-            metadata: Optional[Dict[str, Any]] = None
+            metadata: Optional[Dict[str, Any]] = None,
+            novel_file_path: Optional[str] = None
     ) -> List[Artifact]:
         """
         Create a new artifact
-        
         Args:
             artifact_type: Artifact type (enum or string)
             artifact_id: Optional artifact ID (will be generated if not provided)
             content: Artifact content
             metadata: Metadata dictionary
-            
+            novel_file_path: Path to the novel file (for NOVEL type)
         Returns:
             List of created artifact objects
         """
@@ -192,13 +195,23 @@ class WorkSpace(BaseModel):
         # Ensure metadata is a dictionary
         if metadata is None:
             metadata = {}
-            
+        
         # Ensure artifact_id is a valid string
         if artifact_id is None:
             artifact_id = str(uuid.uuid4())
 
         if artifact_type == ArtifactType.CODE:
             artifacts = CodeArtifact.from_code_content(artifact_type, content)
+        elif artifact_type == ArtifactType.NOVEL:
+            if not novel_file_path:
+                raise ValueError("novel_file_path must be provided for NOVEL artifact type")
+            novel_artifact = NovelArtifact(
+                artifact_type=artifact_type,
+                novel_file_path=novel_file_path,
+                metadata=metadata,
+                artifact_id=artifact_id
+            )
+            artifacts.append(novel_artifact)
         else:
             artifact = Artifact(
                 artifact_id=artifact_id,
@@ -395,20 +408,9 @@ class WorkSpace(BaseModel):
     def _store_artifact(self, artifact: Artifact) -> None:
         """Store artifact in repository"""
         artifact_data = artifact.to_dict()
-
-        # Include complete version history
-        artifact_data["version_history"] = artifact.version_history
-
-        version_id = self.repository.store(
-            artifact_id=artifact.artifact_id,
-            type='artifact',
-            data=artifact_data,
-            metadata={
-                "workspace_id": self.workspace_id
-            }
-        )
-        # Store in repository
-        artifact.current_version = version_id
+        logging.info(f"📦 store_artifact[{artifact.artifact_type}]:{artifact.artifact_id}")
+        self.repository.store_artifact(artifact=artifact)
+        
 
     def save(self) -> str:
         """
@@ -434,12 +436,10 @@ class WorkSpace(BaseModel):
             ]
         }
 
+        logging.info(f"💼 save_workspace {self.workspace_id}")
         # Store workspace information with workspace_id in metadata
-        return self.repository.store(
-            artifact_id=f"workspace_{self.workspace_id}",
-            type='workspace',
-            data=workspace_data,
-            metadata={"workspace_id": self.workspace_id, "type": "workspace"}  # Important for version filtering
+        return self.repository.store_workspace(
+            workspace_meta=workspace_data
         )
 
     @classmethod
@@ -456,7 +456,7 @@ class WorkSpace(BaseModel):
         """
         # Initialize storage path
         storage_dir = storage_path or os.path.join("data", "workspaces", workspace_id)
-        repository = LocalArtifactRepository(storage_dir)
+        repository = ArtifactRepository(storage_dir)
 
         # Get workspace versions
         workspace_versions = repository.index.get("versions", {})
