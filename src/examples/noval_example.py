@@ -4,7 +4,7 @@ from workspacex.artifact import ArtifactType
 from workspacex.workspace import WorkSpace
 import asyncio
 
-NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'xxx.txt')
+NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), '遮天（精校版）.txt')
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
 
 

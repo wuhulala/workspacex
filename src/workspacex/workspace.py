@@ -2,6 +2,7 @@ import logging
 import os
 import traceback
 import uuid
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
 
@@ -83,47 +84,29 @@ class WorkSpace(BaseModel):
 
     def _load_workspace_data(self) -> Optional[Dict[str, Any]]:
         """
-        Load workspace data from repository
-        
+        Load workspace data from index.json and artifacts/{artifact_id}/index.json
+
         Returns:
             Dictionary containing workspace data if exists, None otherwise
         """
         try:
-            if not 'versions' in self.repository.index:
+            # 1. 读取 workspace 的 index.json
+            if not self.repository.index_path.exists():
                 return None
-            # Get workspace versions
-            workspace_versions = self.repository.index['versions']
-            if not workspace_versions:
-                return None
-
-            # Find latest version by timestamp that belongs to this workspace
-            latest_version = None
-            latest_timestamp = 0
-            for version_info in workspace_versions:
-                # Check if this version belongs to current workspace
-                if version_info.get("metadata", {}).get("workspace_id") == self.workspace_id:
-                    if version_info.get("timestamp", 0) > latest_timestamp:
-                        latest_timestamp = version_info.get("timestamp", 0)
-                        latest_version = version_info['version_id']
-
-            if not latest_version:
-                return None
-
-            workspace_data = self.repository.retrieve(latest_version)
-
+            with open(self.repository.index_path, "r", encoding="utf-8") as f:
+                index_data = json.load(f)
+            workspace_data = index_data.get("workspace")
             if not workspace_data:
                 return None
 
-            # Load artifacts
+            # 2. 读取所有 artifact 的 index.json
             artifacts = []
-            # First load the artifacts list from workspace data
-            workspace_artifacts = workspace_data.get("artifacts", [])
-            for artifact_data in workspace_artifacts:
-                artifact_id = artifact_data.get("artifact_id")
-                if artifact_id:
-                    artifact_content = self.repository.retrieve_latest_artifact(artifact_id)
-                    if artifact_content:
-                        artifacts.append(Artifact.from_dict(artifact_content))
+            for artifact_meta in workspace_data.get("artifacts", []):
+                artifact_id = artifact_meta.get("id") or artifact_meta.get("artifact_id")
+                if not artifact_id:
+                    continue
+                artifact_data = self.repository.retrieve_artifact(artifact_id)
+                artifacts.append(Artifact.from_dict(artifact_data))
 
             return {
                 "artifacts": artifacts,
@@ -205,13 +188,12 @@ class WorkSpace(BaseModel):
         elif artifact_type == ArtifactType.NOVEL:
             if not novel_file_path:
                 raise ValueError("novel_file_path must be provided for NOVEL artifact type")
-            novel_artifact = NovelArtifact(
+            artifact = NovelArtifact(
                 artifact_type=artifact_type,
                 novel_file_path=novel_file_path,
                 metadata=metadata,
                 artifact_id=artifact_id
             )
-            artifacts.append(novel_artifact)
         else:
             artifact = Artifact(
                 artifact_id=artifact_id,
@@ -219,25 +201,15 @@ class WorkSpace(BaseModel):
                 content=content,
                 metadata=metadata
             )
-            artifacts.append(artifact)  # Add single artifact to the list
+        if artifact:
+            await self.add_artifact(artifact)
+            return [artifact]
+        
+        if artifacts:
+            for artifact in artifacts:
+                await self.add_artifact(artifact)
 
-        # Add to workspace
-        for artifact in artifacts:
-            self.artifacts.append(artifact)
-            # Store in repository
-            self._store_artifact(artifact)
-
-        # Update workspace time
-        self.updated_at = datetime.now().isoformat()
-
-        # Save workspace state to create new version
-        self.save()
-
-        # Notify observers
-        for artifact in artifacts:
-            await self._notify_observers("create", artifact)
-
-        return artifacts  # Return the list of created artifacts
+        return artifacts
 
     async def add_artifact(
             self,
@@ -252,7 +224,11 @@ class WorkSpace(BaseModel):
         Returns:
             List of created artifact objects
         """
-
+        # Check if artifact ID already exists
+        existing_artifact = self.get_artifact(artifact.artifact_id)
+        logging.info(f"🔍 add_artifact {artifact.artifact_id} {existing_artifact}")
+        if existing_artifact:
+            raise ValueError(f"Artifact with ID {artifact.artifact_id} already exists")
         # Add to workspace
         self.artifacts.append(artifact)
         # Store in repository

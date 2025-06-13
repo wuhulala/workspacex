@@ -34,17 +34,17 @@ class ArtifactRepository:
         """
         return self.storage_path / "artifacts" / artifact_id
 
-    def _sub_dir(self, artifact_id: str, sub_id: str) -> Path:
+    def _sub_dir(self, artifact_id: str) -> Path:
         """
         Get the directory path for a sub-artifact.
         """
-        return self._artifact_dir(artifact_id) / sub_id
+        return self._artifact_dir(artifact_id) / "sublist"
 
     def _sub_data_path(self, artifact_id: str, sub_id: str, ext: str = "txt") -> Path:
         """
         Get the path for a sub-artifact's data file.
         """
-        return self._sub_dir(artifact_id, "sublist") / f"{sub_id}.{ext}"
+        return self._sub_dir(artifact_id) / f"{sub_id}.{ext}"
 
     def _artifact_index_path(self, artifact_id: str) -> Path:
         """
@@ -81,7 +81,19 @@ class ArtifactRepository:
             return index
 
     def retrieve_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
-        pass
+        """
+        Retrieve the artifact data from artifacts/{artifact_id}/index.json.
+
+        Args:
+            artifact_id: The ID of the artifact to retrieve.
+        Returns:
+            The artifact data as a dictionary, or None if not found.
+        """
+        index_path = self._artifact_index_path(artifact_id)
+        if index_path.exists():
+            with open(index_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return None
 
     def store_workspace(self, workspace_meta: dict) -> None:
         """
@@ -142,16 +154,15 @@ class ArtifactRepository:
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
             sub_type = sub.artifact_type
-            sub_dir = self._sub_dir(artifact_id, sub_id)
+            sub_dir = self._sub_dir(artifact_id)
             sub_dir.mkdir(parents=True, exist_ok=True)
             sub_meta = sub.to_dict()
             if sub_type == ArtifactType.TEXT:
                 content = sub.content
                 data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
-                data_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(data_path, "w", encoding="utf-8") as f:
                     f.write(content)
-                sub_meta["content"] = ""  # Clear content in metadata
+                sub_meta["content"] = "" # Clear content in metadata
             sub_artifacts_meta.append(sub_meta)
         # Save artifact metadata (without sub_artifacts' content) to index.json
         artifact_meta = artifact.to_dict()
