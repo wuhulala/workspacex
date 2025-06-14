@@ -1,7 +1,15 @@
 from abc import ABC, abstractmethod
 
+from pydantic import BaseModel, Field
+
 from workspacex.artifact import Artifact
 
+
+class EmbeddingsResult(BaseModel):
+    artifact: Artifact = Field(..., description="Artifact")
+    embedding: list[float] = Field(..., description="Embedding")
+    embedding_model: str = Field(..., description="Embedding model")
+    created_at: int = Field(..., description="Created at")
 
 class Embeddings(ABC):
     """Interface for embedding models.
@@ -9,7 +17,7 @@ class Embeddings(ABC):
     """
 
     @abstractmethod
-    def embed_artifacts(self, artifacts: list[Artifact]) -> list[list[float]]:
+    def embed_artifacts(self, artifacts: list[Artifact]) -> list[EmbeddingsResult]:
         """Embed artifacts."""
         raise NotImplementedError
 
@@ -18,7 +26,7 @@ class Embeddings(ABC):
         """Embed query text."""
         raise NotImplementedError
 
-    async def async_embed_artifacts(self, artifacts: list[Artifact]) -> list[list[float]]:
+    async def async_embed_artifacts(self, artifacts: list[Artifact]) -> list[EmbeddingsResult]:
         """Asynchronous Embed artifacts."""
         raise NotImplementedError
 
