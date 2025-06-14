@@ -33,10 +33,10 @@ async def create_novel_artifact_example() -> None:
     )
     novel_artifact = artifacts[0]
     print(f"Novel artifact created: {novel_artifact.artifact_id}")
-    print(f"Total chapters: {len(novel_artifact.chapters)}")
+    print(f"Total chapters: {novel_artifact.chater_num}")
     # Print first 3 chapter titles as a sample
-    for i, title in enumerate(novel_artifact.chapter_titles[:3]):
-        print(f"Chapter {i+1}: {title}")
+    for i, subartifact in enumerate(novel_artifact.sublist[:3]):
+        print(f"Chapter {i+1}: {subartifact.content[:100]}")
 
 if __name__ == "__main__":
     asyncio.run(create_novel_artifact_example())

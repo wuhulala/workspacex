@@ -8,7 +8,8 @@ from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from workspacex.artifact import ArtifactType, Artifact, NovelArtifact
+from workspacex.artifact import ArtifactType, Artifact
+from workspacex.noval_artifact import NovelArtifact
 from workspacex.code_artifact import CodeArtifact
 from workspacex.storage.artifact_repository import ArtifactRepository
 from workspacex.observer import WorkspaceObserver, get_observer
