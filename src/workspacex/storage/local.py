@@ -9,9 +9,14 @@ from typing import Dict, Any, Optional, List, Literal
 from pydantic import BaseModel
 
 from workspacex.artifact import Artifact, ArtifactType
+from .base import BaseRepository
 
 
-class ArtifactRepository:
+class LocalPathRepository(BaseRepository):
+    """
+    Repository for managing artifacts and their metadata in the local file system.
+    Implements the abstract methods from BaseRepository.
+    """
     def __init__(self, storage_path: str):
         """
         Initialize the artifact repository
@@ -23,6 +28,33 @@ class ArtifactRepository:
         self.index_path = self.storage_path / "index.json"
         self.versions_dir = self.storage_path / "versions"
         self.versions_dir.mkdir(parents=True, exist_ok=True)
+
+    def _save_index(self, index: Dict[str, Any]) -> None:
+        """
+        Save index to file and version it.
+        Args:
+            index: Index dictionary
+        """
+        if self.index_path.exists():
+            version_name = f"index_his_{int(time.time())}.json"
+            version_path = self.versions_dir / version_name
+            self.index_path.replace(version_path)
+        with open(self.index_path, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2, ensure_ascii=False)
+
+    def _load_index(self) -> Dict[str, Any]:
+        """
+        Load or create index file
+        Returns:
+            Index dictionary
+        """
+        if self.index_path.exists():
+            with open(self.index_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            index = {}
+            self._save_index(index)
+            return index
 
     def _artifact_dir(self, artifact_id: str) -> Path:
         """
@@ -52,38 +84,9 @@ class ArtifactRepository:
         """
         return self._artifact_dir(artifact_id) / "index.json"
 
-    def _save_index(self, index: Dict[str, Any]) -> None:
-        """
-        Save index to file and version it.
-        Args:
-            index: Index dictionary
-        """
-        # Save current index as versioned history
-        if self.index_path.exists():
-            version_name = f"index_his_{int(time.time())}.json"
-            version_path = self.versions_dir / version_name
-            self.index_path.replace(version_path)
-        with open(self.index_path, 'w', encoding='utf-8') as f:
-            json.dump(index, f, indent=2, ensure_ascii=False)
-
-    def _load_index(self) -> Dict[str, Any]:
-        """
-        Load or create index file
-        Returns:
-            Index dictionary
-        """
-        if self.index_path.exists():
-            with open(self.index_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            index = {}
-            self._save_index(index)
-            return index
-
     def retrieve_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve the artifact data from artifacts/{artifact_id}/index.json.
-
         Args:
             artifact_id: The ID of the artifact to retrieve.
         Returns:
@@ -98,38 +101,8 @@ class ArtifactRepository:
     def store_workspace(self, workspace_meta: dict) -> None:
         """
         Store the workspace information in index.json, versioning the previous index.
-
-        index.json sample:
-        {
-            "workspace": {
-                    "id": "workspace_id",
-                    "name": "workspace_name",
-                    "created_at": "2021-01-01T00:00:00Z",
-                    "updated_at": "2021-01-01T00:00:00Z",
-                    "metadata": {
-                        "key": "value"
-                    }
-                    "artifacts": [
-                        {
-                            "id": "artifact_id",
-                            "name": "artifact_name",
-                            "created_at": "2021-01-01T00:00:00Z",
-                            "updated_at": "2021-01-01T00:00:00Z",
-                        }
-                    ]
-
-            },
-            "versions": [
-                {
-                    "id": "version_id",
-                    "created_at": "2021-01-01T00:00:00Z",
-                    "updated_at": "2021-01-01T00:00:00Z",
-                }
-            ]
-        }
-
         Args:
-            workspace: WorkSpace object (should not include sublists)
+            workspace_meta: Metadata dictionary for the workspace
         Returns:
             None
         """
@@ -149,7 +122,6 @@ class ArtifactRepository:
         artifact_dir = self._artifact_dir(artifact_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
         sub_artifacts = getattr(artifact, "sub_artifacts", [])
-        # Prepare a list for metadata (with content cleared for text types)
         sub_artifacts_meta = []
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
@@ -162,9 +134,8 @@ class ArtifactRepository:
                 data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
                 with open(data_path, "w", encoding="utf-8") as f:
                     f.write(content)
-                sub_meta["content"] = "" # Clear content in metadata
+                sub_meta["content"] = ""
             sub_artifacts_meta.append(sub_meta)
-        # Save artifact metadata (without sub_artifacts' content) to index.json
         artifact_meta = artifact.to_dict()
         artifact_meta["sublist"] = sub_artifacts_meta
         index_path = self._artifact_index_path(artifact_id)

@@ -3,7 +3,7 @@ from workspacex.artifact import Artifact, ArtifactType
 from workspacex.code_artifact import CodeArtifact, ShellArtifact
 from workspacex.workspace import WorkSpace
 from workspacex.observer import WorkspaceObserver,get_observer
-from workspacex.storage.artifact_repository import ArtifactRepository
+from workspacex.storage.local import LocalPathRepository
 __all__ = [
     "Output",
     "Artifact",
@@ -11,7 +11,7 @@ __all__ = [
     "CodeArtifact",
     "ShellArtifact",
     "WorkSpace",
-    "ArtifactRepository",
+    "LocalPathRepository",
     "WorkspaceObserver",
     "get_observer",
 ]

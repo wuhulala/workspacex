@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from workspacex.artifact import ArtifactType, Artifact
 from workspacex.noval_artifact import NovelArtifact
 from workspacex.code_artifact import CodeArtifact
-from workspacex.storage.artifact_repository import ArtifactRepository
+from workspacex.storage.local import LocalPathRepository
 from workspacex.observer import WorkspaceObserver, get_observer
 
 
@@ -30,7 +30,7 @@ class WorkSpace(BaseModel):
     artifacts: List[Artifact] = Field(default=[], description="list of artifacts")
 
     observers: Optional[List[WorkspaceObserver]] = Field(default=[], description="list of observers", exclude=True)
-    repository: Optional[ArtifactRepository] = Field(default=None, description="local artifact repository", exclude=True)
+    repository: Optional[LocalPathRepository] = Field(default=None, description="local artifact repository", exclude=True)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
@@ -42,7 +42,7 @@ class WorkSpace(BaseModel):
             observers: Optional[List[WorkspaceObserver]] = None,
             use_default_observer: bool = True,
             clear_existing: bool = False,
-            repository: Optional[ArtifactRepository] = None
+            repository: Optional[LocalPathRepository] = None
     ):
         super().__init__()
         self.workspace_id = workspace_id or str(uuid.uuid4())
@@ -55,7 +55,7 @@ class WorkSpace(BaseModel):
             self.repository = repository
         else:
             storage_dir = storage_path or os.path.join("data", "workspaces", self.workspace_id)
-            self.repository = ArtifactRepository(storage_dir)
+            self.repository = LocalPathRepository(storage_dir)
 
         # Initialize artifacts and metadata
         if clear_existing:
@@ -433,7 +433,7 @@ class WorkSpace(BaseModel):
         """
         # Initialize storage path
         storage_dir = storage_path or os.path.join("data", "workspaces", workspace_id)
-        repository = ArtifactRepository(storage_dir)
+        repository = LocalPathRepository(storage_dir)
 
         # Get workspace versions
         workspace_versions = repository.index.get("versions", {})
