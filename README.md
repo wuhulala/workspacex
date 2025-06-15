@@ -33,40 +33,6 @@ Using Poetry:
 poetry install --extras "reranker-server"  # Installs all features
 ```
 
-## Project Structure
-
-```
-workspacex/
-  src/
-    workspacex/   # Main package code
-      artifact.py
-      code_artifact.py
-      workspace.py
-      observer.py
-      storage/
-        local.py
-        s3.py
-        base.py
-      embedding/
-        openai_compatible.py
-        ollama.py
-        base.py
-      extractor/
-        noval_extractor.py
-        base.py
-      reranker/
-        base.py
-        local.py   # Qwen3-Reranker implementation
-      utils/
-        timeit.py
-    reranker-server/  # HTTP service
-      fastapi-reranker.py
-    examples/     # Example scripts
-      embeddings/
-      data/
-      novel_chapters/
-```
-
 ---
 
 ## Usage
@@ -77,11 +43,7 @@ workspacex/
 import asyncio
 import logging
 
-from workspacex import WorkSpace, ArtifactType, get_observer, on_artifact_create
-
-@on_artifact_create
-async def handle_artifact_create(artifact):
-    logging.info(f"Artifact created: {artifact.artifact_id}")
+from workspacex import WorkSpace, ArtifactType
 
 if __name__ == '__main__':
     workspace = WorkSpace.from_local_storages(workspace_id="demo")
@@ -130,10 +92,15 @@ pip install "workspacex[reranker-server]"
 
 2. Start the server:
 ```bash
-python src/reranker-server/fastapi-reranker.py
+python -m workspacex.reranker.server.reranker_server
 ```
 
-3. Use the API:
+The server will start on http://localhost:8000 with the following endpoints:
+- POST `/rerank`: Main reranking endpoint
+- GET `/health`: Health check endpoint
+- Interactive API docs at `/docs` and `/redoc`
+
+Example API usage:
 ```bash
 curl -X POST "http://localhost:8000/rerank" \
      -H "Content-Type: application/json" \
@@ -149,14 +116,28 @@ curl -X POST "http://localhost:8000/rerank" \
            "metadata": {}
          }
        ],
-       "top_n": 2
+       "top_n": 2,
+       "score_threshold": 0.5
      }'
 ```
 
-The server provides:
-- POST `/rerank`: Main reranking endpoint
-- GET `/health`: Health check endpoint
-- Interactive API docs at `/docs` and `/redoc`
+Response format:
+```json
+{
+  "results": [
+    {
+      "content": "Python is a programming language.",
+      "metadata": {},
+      "score": 0.95
+    },
+    {
+      "content": "Python is a type of snake.",
+      "metadata": {},
+      "score": 0.45
+    }
+  ]
+}
+```
 
 ### Storage Backends
 
