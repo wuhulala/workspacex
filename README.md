@@ -124,6 +124,7 @@ The server will start on http://localhost:8000 with the following endpoints:
 
 Example API usage:
 ```bash
+# Using Document objects (recommended)
 curl -X POST "http://localhost:8000/rerank" \
      -H "Content-Type: application/json" \
      -d '{
@@ -140,6 +141,18 @@ curl -X POST "http://localhost:8000/rerank" \
        ],
        "top_n": 2,
        "score_threshold": 0.5
+     }'
+
+# Using simple strings (also supported)
+curl -X POST "http://localhost:8000/rerank" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "query": "What is Python?",
+       "documents": [
+         "Python is a programming language.",
+         "Python is a type of snake."
+       ],
+       "top_n": 2
      }'
 ```
 
