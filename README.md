@@ -10,8 +10,28 @@
 - **Workspace Organization**: Group related artifacts in collaborative workspaces
 - **Storage Backends**: Local file system and S3-compatible storage (via `s3fs`)
 - **Embedding Backends**: OpenAI-compatible and Ollama embedding support
+- **Reranking**: Local reranking using Qwen3-Reranker models
+- **HTTP Service**: FastAPI-based reranking service
 
 ---
+
+## Installation
+
+### Basic Installation
+```bash
+pip install workspacex
+```
+
+### With Reranker Support
+```bash
+pip install "workspacex[reranker]"  # For using reranker in your code
+pip install "workspacex[reranker-server]"  # For running the reranker HTTP service
+```
+
+Using Poetry:
+```bash
+poetry install --extras "reranker-server"  # Installs all features
+```
 
 ## Project Structure
 
@@ -36,8 +56,11 @@ workspacex/
         base.py
       reranker/
         base.py
+        local.py   # Qwen3-Reranker implementation
       utils/
         timeit.py
+    reranker-server/  # HTTP service
+      fastapi-reranker.py
     examples/     # Example scripts
       embeddings/
       data/
@@ -45,13 +68,6 @@ workspacex/
 ```
 
 ---
-
-## Environment Setup
-
-1. **Install dependencies**
-   ```bash
-   poetry install
-   ```
 
 ## Usage
 
@@ -72,7 +88,75 @@ if __name__ == '__main__':
     asyncio.run(workspace.create_artifact(ArtifactType.TEXT, "artifact_001"))
 ```
 
-Artifacts and workspace data will be stored in `data/workspaces`.
+### Using the Reranker
+
+```python
+from workspacex.reranker.base import RerankConfig
+from workspacex.reranker.local import Qwen3RerankerRunner
+from workspacex.artifact import Artifact, ArtifactType
+
+# Initialize reranker
+config = RerankConfig(
+    model_name="Qwen/Qwen3-Reranker-0.6B",  # or "Qwen/Qwen3-Reranker-8B"
+    api_key="not_needed",  # Local model doesn't need these
+    base_url="not_needed"
+)
+reranker = Qwen3RerankerRunner(config)
+
+# Create some test documents
+documents = [
+    Artifact(artifact_type=ArtifactType.TEXT, content="Python is a programming language."),
+    Artifact(artifact_type=ArtifactType.TEXT, content="Python is a type of snake.")
+]
+
+# Rerank documents
+results = reranker.run(
+    query="What is Python programming?",
+    documents=documents,
+    top_n=2
+)
+
+# Print results
+for result in results:
+    print(f"Score: {result.score}, Content: {result.artifact.content}")
+```
+
+### Running the Reranker Server
+
+1. Install server dependencies:
+```bash
+pip install "workspacex[reranker-server]"
+```
+
+2. Start the server:
+```bash
+python src/reranker-server/fastapi-reranker.py
+```
+
+3. Use the API:
+```bash
+curl -X POST "http://localhost:8000/rerank" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "query": "What is Python?",
+       "documents": [
+         {
+           "content": "Python is a programming language.",
+           "metadata": {}
+         },
+         {
+           "content": "Python is a type of snake.",
+           "metadata": {}
+         }
+       ],
+       "top_n": 2
+     }'
+```
+
+The server provides:
+- POST `/rerank`: Main reranking endpoint
+- GET `/health`: Health check endpoint
+- Interactive API docs at `/docs` and `/redoc`
 
 ### Storage Backends
 
@@ -125,6 +209,8 @@ python src/examples/embeddings/openai_example.py
 - If you see `ModuleNotFoundError: No module named 'workspacex'`, ensure your `PYTHONPATH` includes `src`.
 - Storage and embedding backends are pluggable and extensible.
 - For S3 support, install `s3fs` and configure credentials as needed.
+- For reranking, CUDA is recommended for better performance.
+- The reranker server supports both CPU and GPU inference.
 
 ---
 
