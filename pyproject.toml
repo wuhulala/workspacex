@@ -1,6 +1,6 @@
 [project]
 name = "workspacex"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "wuhulala",email = "370031044@qq.com"}
@@ -23,9 +23,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 packages = [
-    { include = "workspacex", from = "src" },
-    { include = "examples", from = "src" }
-
+    { include = "workspacex", from = "src" }
 ]
 
 [tool.poetry.dependencies]

@@ -13,3 +13,4 @@ data/workspaces/
 data/
 .env
 todo.md
+dist/
