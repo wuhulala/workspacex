@@ -191,3 +191,9 @@ class Artifact(Output):
         Get the embedding text for the artifact.
         """
         return str(self.content)
+
+    def get_rerankd_text(self) -> str:
+        """
+        Get the reranked text for the artifact.
+        """
+        return str(self.content)

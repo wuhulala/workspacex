@@ -7,14 +7,9 @@
 ## Features
 
 - **Artifact Management**: Create, update, and manage different types of artifacts (text, code, etc.)
-- **Version Control**: Track changes and maintain version history for artifacts
 - **Workspace Organization**: Group related artifacts in collaborative workspaces
-- **Event Handling**: Observer pattern for artifact creation and updates
 - **Storage Backends**: Local file system and S3-compatible storage (via `s3fs`)
 - **Embedding Backends**: OpenAI-compatible and Ollama embedding support
-- **Type Safety**: Built with Pydantic for robust data validation
-- **Async Support**: Asynchronous operations for better performance
-- **Extensible**: Easy to add new storage, embedding, extractor, and reranker backends
 
 ---
 
@@ -57,13 +52,6 @@ workspacex/
    ```bash
    poetry install
    ```
-
-2. **Activate the conda environment**
-   ```bash
-   conda activate rl
-   ```
-
----
 
 ## Usage
 
