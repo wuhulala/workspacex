@@ -117,6 +117,7 @@ RERANKER_RELOAD=False
 
 The server will start on http://localhost:8000 with the following endpoints:
 - POST `/rerank`: Main reranking endpoint
+- POST `/dify/rerank`: Dify-compatible reranking endpoint
 - GET `/health`: Health check endpoint
 - Interactive API docs at `/docs` and `/redoc`
 
@@ -159,20 +160,74 @@ curl -X POST "http://localhost:8000/rerank" \
 Response format:
 ```json
 {
-  "results": [
+  "docs": [
     {
-      "content": "Python is a programming language.",
-      "metadata": {},
-      "score": 0.9954692125320435
+      "index": 0,
+      "text": "Python is a programming language.",
+      "metadata": {"index": 0},
+      "score": 0.9954494833946228
     },
     {
-      "content": "Python is a type of snake.",
-      "metadata": {},
-      "score": 0.8291946053504944
+      "index": 1,
+      "text": "Python is a type of snake.",
+      "metadata": {"index": 1},
+      "score": 0.8291763067245483
     }
-  ]
+  ],
+  "model": "Qwen/Qwen3-Reranker-0.6B"
 }
 ```
+
+### Dify Integration
+
+For Dify compatibility, use the `/dify/rerank` endpoint:
+
+```bash
+curl -X POST "http://localhost:8000/dify/rerank" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "query": "What is Python?",
+       "documents": [
+         "Python is a programming language.",
+         "Python is a type of snake."
+       ],
+       "top_n": 2
+     }'
+```
+
+Dify response format:
+```json
+{
+  "results": [
+    {
+      "index": 0,
+      "text": "Python is a programming language.",
+      "metadata": {"index": 0},
+      "relevance_score": 0.9954494833946228
+    },
+    {
+      "index": 1,
+      "text": "Python is a type of snake.",
+      "metadata": {"index": 1},
+      "relevance_score": 0.8291763067245483
+    }
+  ],
+  "model": "Qwen/Qwen3-Reranker-0.6B"
+}
+```
+
+### Endpoint Differences
+
+The server provides two reranking endpoints with different response formats:
+
+| Feature | `/rerank` | `/dify/rerank` |
+|---------|-----------|----------------|
+| Response field | `docs` | `results` |
+| Score field | `score` | `relevance_score` |
+| Text field | `text` | `text` |
+| Index tracking | ✅ | ✅ |
+| Model info | ✅ | ✅ |
+| Use case | General purpose | Dify integration |
 
 ### Storage Backends
 

@@ -43,15 +43,15 @@ class RerankerRequest(BaseModel):
     documents: List[Union[Document, str]] = Field(..., description="List of documents to rerank (can be strings or Document objects)")
     score_threshold: Optional[float] = Field(None, description="Optional score threshold")
     top_n: Optional[int] = Field(None, description="Optional top N results to return")
-    
+
     @field_validator('documents')
     @classmethod
     def validate_documents(cls, v):
         """Convert string documents to Document objects for compatibility"""
         processed_docs = []
-        for doc in v:
+        for idx, doc in enumerate(v):
             if isinstance(doc, str):
-                processed_docs.append(Document(content=doc, metadata={}))
+                processed_docs.append(Document(content=doc, metadata={"index": idx}))
             elif isinstance(doc, dict):
                 # Handle dict format
                 content = doc.get('content', '')
@@ -63,9 +63,11 @@ class RerankerRequest(BaseModel):
                 raise ValueError(f"Invalid document format: {type(doc)}. Expected str, dict, or Document object.")
         return processed_docs
 
+
 class RerankerResponse(BaseModel):
     """Response model for reranking results"""
-    results: List[dict] = Field(..., description="Ranked results with scores")
+    docs: List[dict] = Field(..., description="Ranked results with scores")
+    model: str = Field(..., description="Model name")
 
 # Global reranker instance
 reranker: Optional[Qwen3RerankerRunner] = None
@@ -112,42 +114,78 @@ async def rerank(request: RerankerRequest) -> RerankerResponse:
     try:
         # Convert documents to Artifacts
         artifacts = [
-            Artifact(
-                artifact_type=ArtifactType.TEXT,
-                content=doc.content,
-                metadata=doc.metadata
-            ) for doc in request.documents
+            Artifact(artifact_type=ArtifactType.TEXT,
+                     content=doc.content,
+                     metadata=doc.metadata) for doc in request.documents
         ]
 
         # Get reranker instance
         runner = get_reranker()
 
         # Run reranking
-        results = runner.run(
-            query=request.query,
-            documents=artifacts,
-            score_threshold=request.score_threshold,
-            top_n=request.top_n
-        )
+        results = runner.run(query=request.query,
+                             documents=artifacts,
+                             score_threshold=request.score_threshold,
+                             top_n=request.top_n)
 
         # Convert results to response format
-        response_results = [
-            {
-                "content": result.artifact.content,
-                "metadata": result.artifact.metadata,
-                "score": result.score
-            }
-            for result in results
-        ]
+        response_results = [{
+            "index": result.artifact.metadata.get("index", idx),
+            "text": result.artifact.content,
+            "metadata": result.artifact.metadata,
+            "score": result.score,
+        } for idx, result in enumerate(results)]
 
-        return RerankerResponse(results=response_results)
+        return RerankerResponse(docs=response_results,
+                                model=runner.config.model_name)
 
     except Exception as e:
         logger.error(f"Error during reranking: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error during reranking: {str(e)}"
-        )
+        raise HTTPException(status_code=500,
+                            detail=f"Error during reranking: {str(e)}")
+
+
+@app.post("/dify/rerank")
+async def rerank(request: RerankerRequest) -> dict:
+    """
+    Rerank documents based on a query.
+    Args:
+        request (RerankerRequest): The rerank request containing query and documents
+    Returns:
+        RerankerResponse: The reranked results with scores
+    """
+    try:
+        # Convert documents to Artifacts
+        artifacts = [
+            Artifact(artifact_type=ArtifactType.TEXT,
+                     content=doc.content,
+                     metadata=doc.metadata) for doc in request.documents
+        ]
+
+        # Get reranker instance
+        runner = get_reranker()
+
+        # Run reranking
+        results = runner.run(query=request.query,
+                             documents=artifacts,
+                             score_threshold=request.score_threshold,
+                             top_n=request.top_n)
+
+        # Convert results to response format
+        response_results = [{
+            "index": result.artifact.metadata.get("index", idx),
+            "text": result.artifact.content,
+            "metadata": result.artifact.metadata,
+            "relevance_score": result.score,
+        } for idx, result in enumerate(results)]
+
+        return {"results": response_results, "model": runner.config.model_name}
+
+    except Exception as e:
+        logger.error(f"Error during reranking: {e}")
+        raise HTTPException(status_code=500,
+                            detail=f"Error during reranking: {str(e)}")
+
 
 @app.get("/health")
 async def health_check():
