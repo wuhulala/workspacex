@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Reranker API",
-    description="A FastAPI service for reranking documents using Qwen3-Reranker",
+    description="A FastAPI service for reranking documents",
     version="1.0.0"
 )
 
@@ -126,11 +127,9 @@ async def health_check():
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
+
 if __name__ == "__main__":
-    # Add FastAPI to optional dependencies if not already present
-    uvicorn.run(
-        "fastapi-reranker:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run("workspacex.reranker.server.reranker_server:app",
+                host="0.0.0.0",
+                port=int(os.getenv("RERANKER_PORT", "8000")),
+                reload=os.getenv("RERANKER_RELOAD", "True") == "True")
