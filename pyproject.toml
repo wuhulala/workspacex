@@ -1,9 +1,9 @@
 [project]
 name = "workspacex"
-version = "0.1.2"
-description = "**workspacex** is a Python library for managing AIGC (AI-Generated Content) artifacts. It provides a collaborative workspace environment for handling multiple artifacts with features like version control, update notifications, artifact management, and pluggable storage and embedding backends."
+version = "0.1.3"
+description = "workspacex is a Python library for managing AIGC (AI-Generated Content) artifacts. It provides a collaborative workspace environment for handling multiple artifacts with features like version control, update notifications, artifact management, and pluggable storage and embedding backends."
 authors = [
-    {name = "wuhulala",email = "370031044@qq.com"}
+    {name = "wuhulala",email = "xueaohui@gmail.com"}
 ]
 readme = "README.md"
 dependencies = [
@@ -18,14 +18,31 @@ dependencies = [
 ]
 requires-python = ">=3.10,<=3.13"
 
+[project.optional-dependencies]
+reranker = [
+    "torch>=2.2.0",
+    "transformers>=4.51.0"
+]
+reranker-server = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.1",
+    "torch>=2.2.0",
+    "transformers>=4.51.0"
+]
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 packages = [
-    { include = "workspacex", from = "src" }
+    { include = "workspacex", from = "src" },
+    { include = "reranker-server", from = "src" }
 ]
 
 [tool.poetry.dependencies]
 boto3 = "^1.18.0"
+
+[tool.poetry.extras]
+reranker = ["torch", "transformers"]
+reranker-server = ["torch", "transformers", "fastapi", "uvicorn"]
