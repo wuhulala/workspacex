@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Literal
 from pydantic import BaseModel
 
 from workspacex.artifact import Artifact, ArtifactType
-from .base import BaseRepository
+from .base import BaseRepository, CommonEncoder, EnumDecoder
 
 
 class LocalPathRepository(BaseRepository):
@@ -28,6 +28,12 @@ class LocalPathRepository(BaseRepository):
         self.index_path = self.storage_path / "index.json"
         self.versions_dir = self.storage_path / "versions"
         self.versions_dir.mkdir(parents=True, exist_ok=True)
+
+    def _full_path(self, relative_path: str) -> Path:
+        """
+        Convert a relative artifact path to an absolute Path under storage_path.
+        """
+        return self.storage_path / relative_path
 
     def _save_index(self, index: Dict[str, Any]) -> None:
         """
@@ -64,25 +70,25 @@ class LocalPathRepository(BaseRepository):
         Returns:
             Path to the artifact directory
         """
-        return self.storage_path / "artifacts" / artifact_id
+        return self._full_path(f"artifacts/{artifact_id}")
 
     def _sub_dir(self, artifact_id: str) -> Path:
         """
         Get the directory path for a sub-artifact.
         """
-        return self._artifact_dir(artifact_id) / "sublist"
+        return self._full_path(f"artifacts/{artifact_id}/sublist")
 
     def _sub_data_path(self, artifact_id: str, sub_id: str, ext: str = "txt") -> Path:
         """
         Get the path for a sub-artifact's data file.
         """
-        return self._sub_dir(artifact_id) / f"{sub_id}.{ext}"
+        return self._full_path(f"artifacts/{artifact_id}/sublist/{sub_id}.{ext}")
 
     def _artifact_index_path(self, artifact_id: str) -> Path:
         """
         Get the path for the main artifact's index file.
         """
-        return self._artifact_dir(artifact_id) / "index.json"
+        return self._full_path(f"artifacts/{artifact_id}/index.json")
 
     def retrieve_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -92,7 +98,7 @@ class LocalPathRepository(BaseRepository):
         Returns:
             The artifact data as a dictionary, or None if not found.
         """
-        index_path = self._artifact_index_path(artifact_id)
+        index_path = self._full_path(self._artifact_index_path(artifact_id))
         if index_path.exists():
             with open(index_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -119,45 +125,37 @@ class LocalPathRepository(BaseRepository):
             None
         """
         artifact_id = artifact.artifact_id
-        artifact_dir = self._artifact_dir(artifact_id)
+        artifact_dir = self._full_path(self._artifact_dir(artifact_id))
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        sub_artifacts = getattr(artifact, "sub_artifacts", [])
         sub_artifacts_meta = []
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
             sub_type = sub.artifact_type
-            sub_dir = self._sub_dir(artifact_id)
+            sub_dir = self._full_path(self._sub_dir(artifact_id))
             sub_dir.mkdir(parents=True, exist_ok=True)
             sub_meta = sub.to_dict()
             if sub_type == ArtifactType.TEXT:
                 content = sub.content
-                data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
+                data_path = self._full_path(self._sub_data_path(artifact_id, sub_id, ext="txt"))
                 with open(data_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 sub_meta["content"] = ""
             sub_artifacts_meta.append(sub_meta)
         artifact_meta = artifact.to_dict()
         artifact_meta["sublist"] = sub_artifacts_meta
-        index_path = self._artifact_index_path(artifact_id)
+        index_path = self._full_path(self._artifact_index_path(artifact_id))
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 
+    def get_index_data(self) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve the workspace index data as a dictionary from local file system.
+        Returns:
+            The index data as a dictionary, or None if not found.
+        """
+        if not self.index_path.exists():
+            return None
+        with open(self.index_path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
-class CommonEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Enum):
-            return obj.name
-        if isinstance(obj, BaseModel):
-            return obj.model_dump()
-        return json.JSONEncoder.default(self, obj)
-
-class EnumDecoder(json.JSONDecoder):
-    def decode(self, s, **kwargs):
-        parsed_json = super().decode(s, **kwargs)
-        for key, value in parsed_json.items():
-            if isinstance(value, dict) and value.get("__enum__"):
-                enum_type = globals()[value["__enum_type__"]]
-                enum_value = enum_type[value["__enum_value__"]]
-                parsed_json[key] = enum_value
-        return parsed_json
 

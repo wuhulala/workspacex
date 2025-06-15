@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from workspacex.artifact import ArtifactType, Artifact
 from workspacex.noval_artifact import NovelArtifact
 from workspacex.code_artifact import CodeArtifact
+from workspacex.storage.base import BaseRepository
 from workspacex.storage.local import LocalPathRepository
 from workspacex.observer import WorkspaceObserver, get_observer
 
@@ -30,7 +31,7 @@ class WorkSpace(BaseModel):
     artifacts: List[Artifact] = Field(default=[], description="list of artifacts")
 
     observers: Optional[List[WorkspaceObserver]] = Field(default=[], description="list of observers", exclude=True)
-    repository: Optional[LocalPathRepository] = Field(default=None, description="local artifact repository", exclude=True)
+    repository: Optional[BaseRepository] = Field(default=None, description="local artifact repository", exclude=True)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
@@ -92,10 +93,9 @@ class WorkSpace(BaseModel):
         """
         try:
             # 1. 读取 workspace 的 index.json
-            if not self.repository.index_path.exists():
+            index_data = self.repository.get_index_data()
+            if not index_data:
                 return None
-            with open(self.repository.index_path, "r", encoding="utf-8") as f:
-                index_data = json.load(f)
             workspace_data = index_data.get("workspace")
             if not workspace_data:
                 return None
@@ -516,66 +516,29 @@ class WorkSpace(BaseModel):
 
     def generate_tree_data(self) -> Dict[str, Any]:
         """
-        Generate a directory tree structure based on artifact filenames.
-        
+        Generate a tree structure based on artifacts and their sublist recursively.
         Returns:
-            A dictionary representing the directory tree.
+            A dictionary representing the artifact tree.
         """
+        def build_node(artifact, parent_id="-1", depth=1):
+            node = {
+                "name": artifact.metadata.get('filename', artifact.artifact_id),
+                "id": artifact.artifact_id,
+                "type": str(artifact.artifact_type),
+                "artifactId": artifact.artifact_id,
+                "parentId": parent_id,
+                "depth": depth,
+                "expanded": False,
+                "children": []
+            }
+            for sub in getattr(artifact, 'sublist', []):
+                node["children"].append(build_node(sub, parent_id=artifact.artifact_id, depth=depth+1))
+            return node
+
         root = {
             "name": self.name,
             "id": "-1",
-            "children": []
+            "type": "workspace",
+            "children": [build_node(artifact) for artifact in self.artifacts]
         }
-
-        # Store filename to artifacts mapping
-        filename_artifacts = {}
-
-        # First, group artifacts by filename
-        for artifact in self.artifacts:
-            filename = artifact.metadata.get('filename')
-            if filename:
-                if filename not in filename_artifacts:
-                    filename_artifacts[filename] = []
-                filename_artifacts[filename].append(artifact)
-
-        for filename, artifacts in filename_artifacts.items():
-            parts = filename.split('/')
-            current_node = root
-
-            for depth, part in enumerate(parts):
-                if part == "":
-                    continue
-                # gen node_id
-                node_id = str(uuid.uuid4())
-
-                # check node exists
-                existing_node = next((child for child in current_node['children'] if child['name'] == part), None)
-
-                # update node if exists
-                if existing_node:
-                    current_node = existing_node
-                else:
-                    # create new node
-                    new_node = {
-                        "id": node_id,
-                        "type": "dir" if depth < len(parts) - 1 else "file",
-                        "name": part,
-                        "filename": filename,
-                        "parentId": current_node['id'],
-                        "depth": depth + 1,
-                        "expanded": False,
-                        "artifactId": artifacts[0].artifact_id,
-                        "children": []
-                    }
-
-                    # add artifact relation if leaf node
-                    if depth == len(parts) - 1:
-                        new_node.update({
-                            # "content": self.get_file_content_by_artifact_id(filename),
-                            "language": artifacts[0].metadata.get('code_type', 'unknown'),
-                        })
-
-                    current_node['children'].append(new_node)
-                    current_node = new_node
-
         return root
