@@ -4,6 +4,14 @@ from pydantic import BaseModel, Field
 
 from workspacex.artifact import Artifact
 
+class EmbeddingsConfig(BaseModel):
+    api_key: str
+    model_name: str = "text-embedding-3-small"
+    base_url: str = "https://api.openai.com/v1"
+    context_length: int = 8191
+    dimensions: int = 1536
+    batch_size: int = 100
+    timeout: int = 60
 
 class EmbeddingsResult(BaseModel):
     artifact: Artifact = Field(..., description="Artifact")
@@ -33,3 +41,4 @@ class Embeddings(ABC):
     async def async_embed_query(self, text: str) -> list[float]:
         """Asynchronous Embed query text."""
         raise NotImplementedError
+    

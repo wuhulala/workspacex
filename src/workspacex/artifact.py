@@ -185,3 +185,9 @@ class Artifact(Output):
             subartifact: The subartifact to add
         """
         self.sublist.append(subartifact)
+
+    def get_embedding_text(self) -> str:
+        """
+        Get the embedding text for the artifact.
+        """
+        return str(self.content)
