@@ -95,10 +95,32 @@ pip install "workspacex[reranker-server]"
 python -m workspacex.reranker.server.reranker_server
 ```
 
+> Default model: Qwen/Qwen3-Reranker-0.6B
+> 
+> To download the model first:
+> ```bash
+> # Install huggingface_hub
+> pip install -U huggingface_hub
+> 
+> # Set mirror for faster download in China
+> export HF_ENDPOINT=https://hf-mirror.com
+> 
+> # Download the model
+> huggingface-cli download --resume-download Qwen/Qwen3-Reranker-0.6B --local-dir Qwen/Qwen3-Reranker-0.6B
+> ```
+
+```
+RERANKER_MODEL=Qwen/Qwen3-Reranker-0.6B  # or Qwen/Qwen3-Reranker-8B
+RERANKER_PORT=8000
+RERANKER_RELOAD=False
+```
+
 The server will start on http://localhost:8000 with the following endpoints:
 - POST `/rerank`: Main reranking endpoint
 - GET `/health`: Health check endpoint
 - Interactive API docs at `/docs` and `/redoc`
+
+
 
 Example API usage:
 ```bash
@@ -128,12 +150,12 @@ Response format:
     {
       "content": "Python is a programming language.",
       "metadata": {},
-      "score": 0.95
+      "score": 0.9954692125320435
     },
     {
       "content": "Python is a type of snake.",
       "metadata": {},
-      "score": 0.45
+      "score": 0.8291946053504944
     }
   ]
 }

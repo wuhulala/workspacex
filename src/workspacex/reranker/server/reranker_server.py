@@ -48,7 +48,7 @@ def get_reranker() -> Qwen3RerankerRunner:
     if reranker is None:
         try:
             config = RerankConfig(
-                model_name="Qwen/Qwen3-Reranker-0.6B",
+                model_name=os.getenv("RERANKER_MODEL", "Qwen/Qwen3-Reranker-0.6B"),
                 api_key="not_needed",  # Not used for local model
                 base_url="not_needed"   # Not used for local model
             )
@@ -132,4 +132,4 @@ if __name__ == "__main__":
     uvicorn.run("workspacex.reranker.server.reranker_server:app",
                 host="0.0.0.0",
                 port=int(os.getenv("RERANKER_PORT", "8000")),
-                reload=os.getenv("RERANKER_RELOAD", "True") == "True")
+                reload=os.getenv("RERANKER_RELOAD", "False") == "True")
