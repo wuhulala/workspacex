@@ -41,3 +41,7 @@ class Output(BaseModel):
 
     def output_type(self):
         return "default"
+
+
+class WorkspaceConfig(BaseModel):
+    pass

@@ -5,7 +5,7 @@ from workspacex.utils.timeit import timeit
 from typing import List
 import requests
 import aiohttp
-from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult
+from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult, EmbeddingsMetadata
 from workspacex.artifact import Artifact
 
 
@@ -44,11 +44,18 @@ class OllamaEmbeddings(Embeddings):
             EmbeddingsResult: Embedding result for the artifact.
         """
         embedding = self.embed_query(artifact.get_embedding_text())
-        return EmbeddingsResult(
-            artifact=artifact,
-            embedding=embedding,
+        now = int(time.time())
+        metadata = EmbeddingsMetadata(
+            artifact_id=artifact.artifact_id,
             embedding_model=self.config.model_name,
-            created_at=int(time.time())
+            created_at=now,
+            updated_at=now
+        )
+        return EmbeddingsResult(
+            id=artifact.artifact_id,
+            embedding=embedding,
+            content=artifact.get_embedding_text(),
+            metadata=metadata
         )
     
     @timeit(logging.info, "Ollama embedding query completed in {elapsed_time:.2f} seconds")
@@ -70,7 +77,7 @@ class OllamaEmbeddings(Embeddings):
             response.raise_for_status()
             data = response.json()
             # Ollama returns {"embedding": [...], ...}
-            logging.info(f"Ollama embedding response: {data}")
+            logging.debug(f"Ollama embedding response: {data}")
             return self.resolve_embedding(data)
         except Exception as e:
             import traceback
@@ -95,12 +102,19 @@ class OllamaEmbeddings(Embeddings):
         Returns:
             EmbeddingsResult: Embedding result for the artifact.
         """
-        embedding = await self.async_embed_query(str(artifact.content))
-        return EmbeddingsResult(
-            artifact=artifact,
-            embedding=embedding,
+        embedding = await self.async_embed_query(artifact.get_embedding_text())
+        now = int(time.time())
+        metadata = EmbeddingsMetadata(
+            artifact_id=artifact.artifact_id,
             embedding_model=self.config.model_name,
-            created_at=int(time.time())
+            created_at=now,
+            updated_at=now
+        )
+        return EmbeddingsResult(
+            id=artifact.artifact_id,
+            embedding=embedding,
+            content=artifact.get_embedding_text(),
+            metadata=metadata
         )
 
     @timeit(logging.info, "Ollama async embedding query completed in {elapsed_time:.2f} seconds")

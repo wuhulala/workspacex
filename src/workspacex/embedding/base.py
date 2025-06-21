@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
+from typing import List, Optional
+import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from workspacex.artifact import Artifact
+
 
 class EmbeddingsConfig(BaseModel):
     api_key: str
@@ -13,11 +16,24 @@ class EmbeddingsConfig(BaseModel):
     batch_size: int = 100
     timeout: int = 60
 
-class EmbeddingsResult(BaseModel):
-    artifact: Artifact = Field(..., description="Artifact")
-    embedding: list[float] = Field(..., description="Embedding")
+class EmbeddingsMetadata(BaseModel):
+    artifact_id: str = Field(..., description="Artifact ID")
     embedding_model: str = Field(..., description="Embedding model")
     created_at: int = Field(..., description="Created at")
+    updated_at: int = Field(..., description="Updated at")
+
+    model_config = ConfigDict(extra="allow")
+
+class EmbeddingsResult(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="ID")
+    embedding: Optional[list[float]] = Field(default=None, description="Embedding")
+    content: str = Field(..., description="Content")
+    metadata: Optional[EmbeddingsMetadata] = Field(..., description="Metadata")
+    score: Optional[float] = Field(default=None, description="Retrieved relevance score")
+
+class EmbeddingsResults(BaseModel):
+    docs: Optional[List[EmbeddingsResult]]
+    retrieved_at: int = Field(..., description="Retrieved at")
 
 class Embeddings(ABC):
     """Interface for embedding models.

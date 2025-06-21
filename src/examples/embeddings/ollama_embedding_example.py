@@ -1,18 +1,21 @@
 
 import asyncio
+import os
 from typing import List
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.embedding.base import EmbeddingsConfig
 from workspacex.embedding.ollama import OllamaEmbeddings
 import logging
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 
 async def main():
+    load_dotenv()   
     # Create embedding configuration
     config = EmbeddingsConfig(
         model_name="nomic-embed-text",  # Using nomic-embed-text model
-        base_url="http://192.168.0.40:11434",  # Default Ollama URL
+        base_url=os.getenv("OLLAMA_BASE_URL"),  # Default Ollama URL
         timeout=30,  # 30 seconds timeout
         api_key="ollama-api-key"
     )

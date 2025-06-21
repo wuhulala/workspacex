@@ -3,7 +3,7 @@ import time
 import logging
 from typing import Any, List
 from workspacex.artifact import Artifact
-from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult
+from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult, EmbeddingsMetadata
 from workspacex.utils.timeit import timeit
 from openai import OpenAI
 
@@ -51,10 +51,19 @@ class OpenAICompatibleEmbeddings(Embeddings):
             EmbeddingsResult: Embedding result for the artifact.
         """
         embedding = self.embed_query(artifact.get_embedding_text())
-        return EmbeddingsResult(artifact=artifact,
-                                embedding=embedding,
-                                embedding_model=self.config.model_name,
-                                created_at=int(time.time()))
+        now = int(time.time())
+        metadata = EmbeddingsMetadata(
+            artifact_id=artifact.artifact_id,
+            embedding_model=self.config.model_name,
+            created_at=now,
+            updated_at=now
+        )
+        return EmbeddingsResult(
+            id=artifact.artifact_id,
+            embedding=embedding,
+            content=artifact.get_embedding_text(),
+            metadata=metadata
+        )
 
     @timeit(logging.info,
             "OpenAI embedding query completed in {elapsed_time:.3f} seconds")
@@ -101,10 +110,19 @@ class OpenAICompatibleEmbeddings(Embeddings):
             EmbeddingsResult: Embedding result for the artifact.
         """
         embedding = await self.async_embed_query(artifact.get_embedding_text())
-        return EmbeddingsResult(artifact=artifact,
-                                embedding=embedding,
-                                embedding_model=self.config.model_name,
-                                created_at=int(time.time()))
+        now = int(time.time())
+        metadata = EmbeddingsMetadata(
+            artifact_id=artifact.id,
+            embedding_model=self.config.model_name,
+            created_at=now,
+            updated_at=now
+        )
+        return EmbeddingsResult(
+            id=artifact.artifact_id,
+            embedding=embedding,
+            content=artifact.get_embedding_text(),
+            metadata=metadata
+        )
 
     @timeit(
         logging.info,
