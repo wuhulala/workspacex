@@ -33,7 +33,7 @@ class NovalExtractor(BaseExtractor):
             artifacts.append(subartifact)
         return artifacts
 
-    def _load_and_split_novel(self, novel_file_path: str) -> tuple[str, List[str], List[str]]:
+    def _load_and_split_novel(self, novel_file_path: str) -> tuple[List[str], List[str]]:
         """
         Load the novel file and split it into chapters.
         Args:
