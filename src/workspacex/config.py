@@ -63,7 +63,15 @@ if WORKSPACEX_VECTOR_DB_PROVIDER == "chroma":
     CHROMA_HTTP_SSL = os.environ.get("CHROMA_HTTP_SSL", "false").lower() == "true"
 
 ####################################
-# Config for Retrieval
+# Config for Hybrid Search
+####################################
+WORKSPACEX_ENABLE_HYBRID_SEARCH = os.environ.get("WORKSPACEX_ENABLE_HYBRID_SEARCH", "").lower() == "true"
+WORKSPACEX_HYBRID_SEARCH_TOP_K = os.environ.get("WORKSPACEX_HYBRID_SEARCH_TOP_K", "10")
+WORKSPACEX_HYBRID_SEARCH_THRESHOLD = os.environ.get("WORKSPACEX_HYBRID_SEARCH_THRESHOLD", "0.5")
+
+
+####################################
+# Config for RAG
 ####################################
 
 WORKSPACEX_DEFAULT_RETRIEVAL_TEMPLATE = """### Task:
@@ -96,24 +104,6 @@ Provide a clear and direct response to the user's query, including inline citati
 </user_query>
 """
 
-
-####################################
-# Config for Reranking
-####################################
-
-WORKSPACEX_RERANKING_MODEL = os.environ.get("WORKSPACEX_RERANKING_MODEL", "")
-WORKSPACEX_TOP_K = os.environ.get("WORKSPACEX_TOP_K", "3")
-WORKSPACEX_TOP_K_RERANKER = os.environ.get("WORKSPACEX_TOP_K_RERANKER", "3")
-WORKSPACEX_RELEVANCE_THRESHOLD = os.environ.get("WORKSPACEX_RELEVANCE_THRESHOLD", "0.0")
-
-
-WORKSPACEX_ENABLE_HYBRID_SEARCH = os.environ.get("WORKSPACEX_ENABLE_HYBRID_SEARCH", "").lower() == "true"
-WORKSPACEX_HYBRID_SEARCH_TOP_K = os.environ.get("WORKSPACEX_HYBRID_SEARCH_TOP_K", "10")
-WORKSPACEX_HYBRID_SEARCH_THRESHOLD = os.environ.get("WORKSPACEX_HYBRID_SEARCH_THRESHOLD", "0.5")
-
-WORKSPACEX_FULL_CONTEXT = os.environ.get("WORKSPACEX_FULL_CONTEXT", "False").lower() == "true"
-WORKSPACEX_FILE_MAX_COUNT = os.environ.get("WORKSPACEX_FILE_MAX_COUNT", None)
-WORKSPACEX_FILE_MAX_SIZE = os.environ.get("WORKSPACEX_FILE_MAX_SIZE", None)
 
 WORKSPACEX_RAG_TEMPLATE = os.environ.get("WORKSPACEX_RAG_TEMPLATE", WORKSPACEX_DEFAULT_RETRIEVAL_TEMPLATE)
 

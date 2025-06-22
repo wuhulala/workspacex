@@ -1,4 +1,6 @@
 import time
+import traceback
+
 import chromadb
 import logging
 from chromadb import Settings
@@ -80,7 +82,7 @@ class ChromaVectorDB(VectorDB):
             if collection:
                 result = collection.query(
                     query_embeddings=vectors,
-                    where=filter,
+                    # where=filter,
                     n_results=limit,
                 )
 
@@ -90,7 +92,7 @@ class ChromaVectorDB(VectorDB):
                 distances = [2 - dist for dist in distances]
                 distances = [[dist / 2 for dist in distances]]
 
-                docs = self._convert2_embedding_result_with_score(result, distances=distances, threshold=threshold)
+                docs = self._convert2_embedding_result_with_score(result= result, distances=distances, threshold=threshold)
 
                 return EmbeddingsResults(
                     **{
@@ -100,6 +102,7 @@ class ChromaVectorDB(VectorDB):
                 )
             return None
         except Exception as e:
+            traceback.print_exc()
             logging.error(f"Error in search: {e}")
             return None
 
@@ -300,6 +303,8 @@ class ChromaVectorDB(VectorDB):
                     collection.delete(ids=ids)
                 elif filter:
                     collection.delete(where=filter)
+                else:
+                    collection.delete(where={})
         except Exception as e:
             # If collection doesn't exist, that's fine - nothing to delete
             logging.debug(

@@ -82,7 +82,7 @@ class AliyunRerankRunner(BaseRerankRunner):
         if not HAS_SDK:
             raise ImportError("Aliyun SDK (dashscope) is not installed.")
         # Example usage, adjust as per Aliyun SDK docs
-        contents = [doc.get_rerankd_text() for doc in documents]
+        contents = [doc.get_reranked_text() for doc in documents]
         rsp = dashscope.Rerank.call(
             model=self.config.model_name,
             query=query,
@@ -122,7 +122,7 @@ class AliyunRerankRunner(BaseRerankRunner):
         payload = {
             "model": self.config.model_name,
             "query": query,
-            "documents": [doc.get_rerankd_text() for doc in documents],
+            "documents": [doc.get_reranked_text() for doc in documents],
         }
         if top_n is not None:
             payload["top_n"] = top_n

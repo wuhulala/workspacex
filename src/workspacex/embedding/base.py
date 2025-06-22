@@ -5,7 +5,6 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from workspacex.artifact import Artifact
-from workspacex.base import EmbeddingConfig
 
 
 class EmbeddingsConfig(BaseModel):
@@ -24,8 +23,8 @@ class EmbeddingsMetadata(BaseModel):
     created_at: int = Field(..., description="Created at")
     updated_at: int = Field(..., description="Updated at")
     artifact_type: str = Field(..., description="Artifact type")
-    artifact_name: str = Field(..., description="Artifact name")
-
+    parent_id: str = Field(default="", description="Parent ID")
+    
     model_config = ConfigDict(extra="allow")
 
 class EmbeddingsResult(BaseModel):
@@ -77,7 +76,7 @@ class Embeddings(ABC):
 class EmbeddingFactory:
 
     @staticmethod
-    def get_embedder(config: EmbeddingConfig) -> Embeddings:
+    def get_embedder(config: EmbeddingsConfig) -> Embeddings:
         if config.provider == "openai":
             from workspacex.embedding.openai_compatible import OpenAICompatibleEmbeddings
             return OpenAICompatibleEmbeddings(config)

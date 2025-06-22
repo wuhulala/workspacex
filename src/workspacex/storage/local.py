@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shutil
 import time
 import uuid
 from enum import Enum
@@ -17,14 +18,18 @@ class LocalPathRepository(BaseRepository):
     Repository for managing artifacts and their metadata in the local file system.
     Implements the abstract methods from BaseRepository.
     """
-    def __init__(self, storage_path: str):
+    def __init__(self, storage_path: str, clear_existing: bool = False):
         """
         Initialize the artifact repository
         Args:
             storage_path: Directory path for storing data
+            clear_existing: Clear existing data if True
         """
         self.storage_path = Path(storage_path)
+        if clear_existing and self.storage_path.exists():
+            shutil.rmtree(self.storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
+            
         self.index_path = self.storage_path / "index.json"
         self.versions_dir = self.storage_path / "versions"
         self.versions_dir.mkdir(parents=True, exist_ok=True)
@@ -98,7 +103,7 @@ class LocalPathRepository(BaseRepository):
         Returns:
             The artifact data as a dictionary, or None if not found.
         """
-        index_path = self._full_path(self._artifact_index_path(artifact_id))
+        index_path = self._artifact_index_path(artifact_id)
         if index_path.exists():
             with open(index_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -125,25 +130,25 @@ class LocalPathRepository(BaseRepository):
             None
         """
         artifact_id = artifact.artifact_id
-        artifact_dir = self._full_path(self._artifact_dir(artifact_id))
+        artifact_dir = self._artifact_dir(artifact_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
         sub_artifacts_meta = []
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
             sub_type = sub.artifact_type
-            sub_dir = self._full_path(self._sub_dir(artifact_id))
+            sub_dir = self._sub_dir(artifact_id)
             sub_dir.mkdir(parents=True, exist_ok=True)
             sub_meta = sub.to_dict()
             if sub_type == ArtifactType.TEXT:
                 content = sub.content
-                data_path = self._full_path(self._sub_data_path(artifact_id, sub_id, ext="txt"))
+                data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
                 with open(data_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 sub_meta["content"] = ""
             sub_artifacts_meta.append(sub_meta)
         artifact_meta = artifact.to_dict()
         artifact_meta["sublist"] = sub_artifacts_meta
-        index_path = self._full_path(self._artifact_index_path(artifact_id))
+        index_path = self._artifact_index_path(artifact_id)
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 

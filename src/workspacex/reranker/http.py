@@ -62,7 +62,7 @@ class HttpRerankRunner(BaseRerankRunner):
         payload = {
             "model": self.config.model_name,
             "query": query,
-            "documents": [doc.get_rerankd_text() for doc in documents],
+            "documents": [doc.get_reranked_text() for doc in documents],
         }
         if top_n is not None:
             payload["top_n"] = top_n

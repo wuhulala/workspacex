@@ -2,11 +2,11 @@ import os
 import sys
 import json
 from dotenv import load_dotenv
-from workspacex.artifact import ArtifactType
+from workspacex.artifact import ArtifactType, HybridSearchQuery
 from workspacex.workspace import WorkSpace
 import asyncio
 
-NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval_large.txt')
+NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval.txt')
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -21,25 +21,30 @@ def ensure_output_folder(folder_path: str) -> None:
         os.makedirs(folder_path)
 
 
-async def create_novel_artifact_example() -> None:
+async def create_novel_artifact_example(embedding_flag: bool = False) -> None:
     """
     Example: Create a NovelArtifact from a novel file, split by chapters, and save chapters to files.
     """
     ensure_output_folder(SAVE_CHAPTERS_BASE_FOLDER)
     # Create a workspace
-    ws = WorkSpace(workspace_id="novel_example_workspace", name="Novel Example Workspace")
+    ws = WorkSpace(workspace_id="novel_example_workspace_v2", name="Novel Example Workspace", clear_existing=True)
     # Create the novel artifact and save chapters
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",
         artifact_type=ArtifactType.NOVEL,
-        novel_file_path=NOVEL_FILE_PATH
+        novel_file_path=NOVEL_FILE_PATH,
+        embedding_flag=embedding_flag
     )
     novel_artifact = artifacts[0]
-    print(f"Novel artifact created: {novel_artifact.artifact_id}")
-    print(f"Total chapters: {novel_artifact.chater_num}")
+    logging.info(f"Novel artifact created: {novel_artifact.artifact_id}")
+    logging.info(f"Total chapters: {novel_artifact.chapter_num}")
     # Print first 3 chapter titles as a sample
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
-        print(f"Chapter {i+1}: {subartifact.content[:100]}")
+        logging.info(f"Chapter {i+1}: {subartifact.content[:100]}")
+
+    if embedding_flag:
+        logging.info("🔍 Hybrid search example")
+        await hybrid_search_example(ws)
 
 
 async def create_novel_artifact_s3_example() -> None:
@@ -84,7 +89,14 @@ async def create_novel_artifact_s3_example() -> None:
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
         print(f"[S3] Chapter {i+1}: {subartifact.content[:100]}")
 
+async def hybrid_search_example(ws: WorkSpace) -> None:
+    """
+    Example: Hybrid search for a novel artifact.
+    """
+    results = await ws.retrieve_artifact(HybridSearchQuery(query="旅行者二号?", filter_types=[ArtifactType.NOVEL]))
+    print(f"Hybrid search results: {results}")
+
 if __name__ == "__main__":
-    # asyncio.run(create_novel_artifact_example())
+    asyncio.run(create_novel_artifact_example(embedding_flag=True))
     # Uncomment the following line to test S3/MinIO integration
-    asyncio.run(create_novel_artifact_s3_example())
+    # asyncio.run(create_novel_artifact_s3_example())

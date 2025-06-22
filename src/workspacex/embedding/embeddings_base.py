@@ -59,7 +59,7 @@ class EmbeddingsBase(Embeddings):
             created_at=now,
             updated_at=now,
             artifact_type=artifact.artifact_type.name,
-            artifact_name=artifact.name
+            parent_id=artifact.parent_id
         )
         return EmbeddingsResult(
             id=artifact.artifact_id,
@@ -115,7 +115,7 @@ class EmbeddingsBase(Embeddings):
             created_at=now,
             updated_at=now,
             artifact_type=artifact.artifact_type.name,
-            artifact_name=artifact.name
+            parent_id=artifact.parent_id
         )
         return EmbeddingsResult(
             id=artifact.artifact_id,

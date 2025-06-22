@@ -10,12 +10,13 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from workspacex.artifact import ArtifactType, Artifact, HybridSearchResult, HybridSearchQuery
 from workspacex.base import WorkspaceConfig
-from workspacex.embedding.base import EmbeddingFactory
+from workspacex.embedding.base import EmbeddingFactory, Embeddings
 from workspacex.noval_artifact import NovelArtifact
 from workspacex.code_artifact import CodeArtifact
 from workspacex.storage.base import BaseRepository
 from workspacex.storage.local import LocalPathRepository
 from workspacex.observer import WorkspaceObserver, get_observer
+from workspacex.vector.dbs.base import VectorDB
 from workspacex.vector.factory import VectorDBFactory
 
 
@@ -35,8 +36,11 @@ class WorkSpace(BaseModel):
 
     observers: Optional[List[WorkspaceObserver]] = Field(default=[], description="list of observers", exclude=True)
     repository: Optional[BaseRepository] = Field(default=None, description="local artifact repository", exclude=True)
+    workspace_config: Optional[WorkspaceConfig] = Field(default=None, description="workspace config", exclude=True)
+    embedder: Optional[Embeddings] = Field(default=None, description="embedder instance", exclude=True)
+    vector_db: Optional[VectorDB] = Field(default=None, description="vector_db instance", exclude=True)
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
     
     def __init__(
             self,
@@ -46,7 +50,7 @@ class WorkSpace(BaseModel):
             observers: Optional[List[WorkspaceObserver]] = None,
             use_default_observer: bool = True,
             clear_existing: bool = False,
-            repository: Optional[LocalPathRepository] = None
+            repository: Optional[BaseRepository] = None
     ):
         super().__init__()
         self.workspace_id = workspace_id or str(uuid.uuid4())
@@ -60,7 +64,7 @@ class WorkSpace(BaseModel):
             self.repository = repository
         else:
             storage_dir = storage_path or os.path.join("data", "workspaces", self.workspace_id)
-            self.repository = LocalPathRepository(storage_dir)
+            self.repository = LocalPathRepository(storage_dir, clear_existing=clear_existing)
 
         # Initialize artifacts and metadata
         if clear_existing:
@@ -90,6 +94,8 @@ class WorkSpace(BaseModel):
 
         self.embedder = EmbeddingFactory.get_embedder(self.workspace_config.embedding_config)
         self.vector_db = VectorDBFactory.get_vector_db(self.workspace_config.vector_db_config)
+        if clear_existing:
+            self.vector_db.delete(self.workspace_id)
 
     
 
@@ -133,7 +139,8 @@ class WorkSpace(BaseModel):
             artifact_id: Optional[str] = None,
             content: Optional[Any] = None,
             metadata: Optional[Dict[str, Any]] = None,
-            novel_file_path: Optional[str] = None
+            novel_file_path: Optional[str] = None,
+            embedding_flag: bool = False
     ) -> List[Artifact]:
         """
         Create a new artifact
@@ -152,6 +159,7 @@ class WorkSpace(BaseModel):
 
         # Create new artifacts
         artifacts = []
+        artifact = None
 
         # Ensure metadata is a dictionary
         if metadata is None:
@@ -170,14 +178,16 @@ class WorkSpace(BaseModel):
                 artifact_type=artifact_type,
                 novel_file_path=novel_file_path,
                 metadata=metadata,
-                artifact_id=artifact_id
+                artifact_id=artifact_id,
+                embedding=embedding_flag
             )
         else:
             artifact = Artifact(
                 artifact_id=artifact_id,
                 artifact_type=artifact_type,
                 content=content,
-                metadata=metadata
+                metadata=metadata,
+                embedding=embedding_flag
             )
         if artifact:
             await self.add_artifact(artifact)
@@ -287,12 +297,22 @@ class WorkSpace(BaseModel):
         """Store artifact in repository"""
 
         self.repository.store_artifact(artifact=artifact)
-        logging.info(f"📦 store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
+        logging.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
 
         if artifact.embedding:
-            embedding_result = self.embedder.embed_artifact(artifact)
-            self.vector_db.insert(self.workspace_id, [embedding_result])
-            logging.info(f"📦 store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")    
+            if artifact.get_embedding_text():
+                embedding_result = self.embedder.embed_artifact(artifact)
+                self.vector_db.insert(self.workspace_id, [embedding_result])
+                logging.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+            else:
+                logging.info(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_text is empty")
+
+            if artifact.sublist and len(artifact.sublist) > 0:
+                for subartifact in artifact.sublist:
+                    if subartifact.embedding and subartifact.get_embedding_text():
+                        embedding_result = self.embedder.embed_artifact(subartifact)
+                        self.vector_db.insert(self.workspace_id, [embedding_result])
+                        logging.info(f"📦[EMBEDDING]✅ store_sub_artifact[{subartifact.artifact_type}]:{subartifact.artifact_id} embedding_result finished")
 
     #########################################################
     # Artifact Retrieval
@@ -312,7 +332,7 @@ class WorkSpace(BaseModel):
             return [a for a in self.artifacts if a.artifact_type in filter_types]
         return self.artifacts
     
-    def get_artifact(self, artifact_id: str) -> Optional[Artifact]:
+    def get_artifact(self, artifact_id: str, parent_id: str = None) -> Optional[Artifact]:
         """
         Get an artifact by its ID
         
@@ -322,6 +342,16 @@ class WorkSpace(BaseModel):
         Returns:
             Artifact object if found, None otherwise
         """
+        if parent_id:
+            parent_artifact = self.get_artifact(artifact_id=parent_id)
+            if parent_artifact:
+                if not parent_artifact.sublist:
+                    return None
+                for sub_artifact in parent_artifact.sublist:
+                    if sub_artifact.artifact_id == artifact_id:
+                        return sub_artifact
+                return None
+
         for artifact in self.artifacts:
             if artifact.artifact_id == artifact_id:
                 return artifact
@@ -358,7 +388,7 @@ class WorkSpace(BaseModel):
     #########################################################
 
 
-    def retrieve_artifact(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
+    async def retrieve_artifact(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
         """
         Retrieve an artifact by its ID
         
@@ -399,12 +429,11 @@ class WorkSpace(BaseModel):
                 if not doc.metadata:
                     logging.warning("🔍 retrieve_artifact doc.metadata is None")
                     continue
-                
-                artifact = self.get_artifact(doc.metadata.artifact_id)
+                artifact = self.get_artifact(doc.metadata.artifact_id, parent_id = doc.metadata.parent_id)
                 if not artifact:
                     logging.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
                     continue
-                results.append(HybridSearchResult(artifact=artifact, score=doc.score, created_at=doc.created_at, similarity=doc.similarity, distance=doc.distance))
+                results.append(HybridSearchResult(artifact=artifact, score=doc.score))
         
         logging.info(f"🔍 retrieve_artifact results: {results}")
         return results
@@ -464,7 +493,7 @@ class WorkSpace(BaseModel):
     # Workspace Management
     #########################################################
 
-    def save(self) -> str:
+    def save(self) -> None:
         """
         Save workspace state
         
@@ -490,8 +519,8 @@ class WorkSpace(BaseModel):
 
         logging.info(f"💼 save_workspace {self.workspace_id}")
         # Store workspace information with workspace_id in metadata
-        return self.repository.store_workspace(
-            workspace_meta=workspace_data
+        self.repository.store_index(
+            index_data=workspace_data
         )
     
     def _load_workspace_data(self) -> Optional[Dict[str, Any]]:

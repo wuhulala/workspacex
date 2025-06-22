@@ -1,4 +1,3 @@
-from workspacex.base import Output
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.code_artifact import CodeArtifact, ShellArtifact
 from workspacex.workspace import WorkSpace
@@ -12,7 +11,6 @@ from workspacex.embedding.openai_compatible import OpenAICompatibleEmbeddings
 from workspacex.embedding.ollama import OllamaEmbeddings
 
 __all__ = [
-    "Output",
     "Artifact",
     "ArtifactType",
     "CodeArtifact",

@@ -1,12 +1,9 @@
 import uuid
 from datetime import datetime
 from enum import Enum, auto
-from typing import Dict, Any, Optional, ClassVar, List, TYPE_CHECKING
-from pydantic import BaseModel, Field, field_validator, model_validator
-import os
+from typing import Dict, Any, Optional, List
 
-from workspacex.base import Output
-
+from pydantic import BaseModel, Field, model_validator
 
 class ArtifactType(Enum):
     """Defines supported artifact types"""
@@ -37,7 +34,7 @@ class ArtifactStatus(Enum):
     EDITED = auto()     # Edited status
     ARCHIVED = auto()   # Archived status
 
-class Artifact(Output):
+class Artifact(BaseModel):
     """
     Represents a specific content generation result (artifact)
     
@@ -46,6 +43,7 @@ class Artifact(Output):
     """
 
     artifact_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique identifier for the artifact")
+    parent_id: str = Field(default="", description="Parent identifier for the artifact")
     artifact_type: ArtifactType = Field(..., description="Type of the artifact")
     content: Any = Field(..., description="Content of the artifact")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata associated with the artifact")
@@ -187,16 +185,20 @@ class Artifact(Output):
         """
         self.sublist.append(subartifact)
 
-    def get_embedding_text(self) -> str:
+    def get_embedding_text(self) -> Optional[str]:
         """
         Get the embedding text for the artifact.
         """
+        if not self.content:
+            return None
         return str(self.content)
 
-    def get_rerankd_text(self) -> str:
+    def get_reranked_text(self) -> Optional[str]:
         """
         Get the reranked text for the artifact.
         """
+        if not self.content:
+            return None
         return str(self.content)
 
 class HybridSearchQuery(BaseModel):

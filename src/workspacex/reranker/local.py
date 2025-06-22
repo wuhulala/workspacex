@@ -152,7 +152,7 @@ class Qwen3RerankerRunner(BaseRerankRunner):
         """
         # Format inputs
         pairs = [
-            self.format_instruction(query, doc.get_rerankd_text())
+            self.format_instruction(query, doc.get_reranked_text())
             for doc in documents
         ]
 
