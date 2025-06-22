@@ -1,18 +1,8 @@
-import json
-import logging
 import os
-import shutil
-import base64
 
-from datetime import datetime
-from pathlib import Path
-from typing import Generic, Optional, TypeVar
-from urllib.parse import urlparse
+from dotenv import load_dotenv
 
-import requests
-from pydantic import BaseModel
-
-
+load_dotenv()
 
 DATA_DIR = os.environ.get("DATA_DIR", f"{os.path.expanduser('~')}/workspacex")
 
@@ -33,25 +23,25 @@ WORKSPACEX_TEXT_SPLITTER = os.environ.get("WORKSPACEX_TEXT_SPLITTER", "")
 ####################################
 # Config for Embedding
 ####################################
-WORKSPACEX_EMBEDDING_ENGINE = os.environ.get("WORKSPACEX_EMBEDDING_ENGINE", "")
-WORKSPACEX_EMBEDDING_MODEL = os.environ.get("WORKSPACEX_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-WORKSPACEX_EMBEDDING_MODEL_AUTO_UPDATE = os.environ.get("WORKSPACEX_EMBEDDING_MODEL_AUTO_UPDATE", "True").lower() == "true"
-WORKSPACEX_EMBEDDING_MODEL_TRUST_REMOTE_CODE = os.environ.get("WORKSPACEX_EMBEDDING_MODEL_TRUST_REMOTE_CODE", "True").lower() == "true"
-WORKSPACEX_EMBEDDING_BATCH_SIZE = os.environ.get("WORKSPACEX_EMBEDDING_BATCH_SIZE", "1")
-WORKSPACEX_EMBEDDING_QUERY_PREFIX = os.environ.get("WORKSPACEX_EMBEDDING_QUERY_PREFIX", None)
-WORKSPACEX_EMBEDDING_CONTENT_PREFIX = os.environ.get("WORKSPACEX_EMBEDDING_CONTENT_PREFIX", None)
-WORKSPACEX_EMBEDDING_PREFIX_FIELD_NAME = os.environ.get("WORKSPACEX_EMBEDDING_PREFIX_FIELD_NAME", None)
+WORKSPACEX_EMBEDDING_PROVIDER = os.environ.get("WORKSPACEX_EMBEDDING_PROVIDER", "openai")
+WORKSPACEX_EMBEDDING_MODEL = os.environ.get("WORKSPACEX_EMBEDDING_MODEL", "nomic-embed-text")
+WORKSPACEX_EMBEDDING_API_KEY = os.environ.get("WORKSPACEX_EMBEDDING_API_KEY", "")
+WORKSPACEX_EMBEDDING_API_BASE_URL = os.environ.get("WORKSPACEX_EMBEDDING_API_BASE_URL", "https://api.nomic.ai/v1")
+WORKSPACEX_EMBEDDING_CONTEXT_LENGTH = os.environ.get("WORKSPACEX_EMBEDDING_CONTEXT_LENGTH", "8191")
+WORKSPACEX_EMBEDDING_DIMENSIONS = os.environ.get("WORKSPACEX_EMBEDDING_DIMENSIONS", "1536")
+WORKSPACEX_EMBEDDING_BATCH_SIZE = os.environ.get("WORKSPACEX_EMBEDDING_BATCH_SIZE", "100")
+WORKSPACEX_EMBEDDING_TIMEOUT = os.environ.get("WORKSPACEX_EMBEDDING_TIMEOUT", "60")
 
 ####################################
 # Config for Vector Database
 ####################################
 
-VECTOR_DB = os.environ.get("VECTOR_DB", "chroma")
+WORKSPACEX_VECTOR_DB_PROVIDER = os.environ.get("WORKSPACEX_VECTOR_DB_PROVIDER", "chroma")
 
 # Chroma
 CHROMA_DATA_PATH = f"{DATA_DIR}/vector_db"
 
-if VECTOR_DB == "chroma":
+if WORKSPACEX_VECTOR_DB_PROVIDER == "chroma":
     import chromadb
 
     CHROMA_TENANT = os.environ.get("CHROMA_TENANT", chromadb.DEFAULT_TENANT)
@@ -118,6 +108,9 @@ WORKSPACEX_RELEVANCE_THRESHOLD = os.environ.get("WORKSPACEX_RELEVANCE_THRESHOLD"
 
 
 WORKSPACEX_ENABLE_HYBRID_SEARCH = os.environ.get("WORKSPACEX_ENABLE_HYBRID_SEARCH", "").lower() == "true"
+WORKSPACEX_HYBRID_SEARCH_TOP_K = os.environ.get("WORKSPACEX_HYBRID_SEARCH_TOP_K", "10")
+WORKSPACEX_HYBRID_SEARCH_THRESHOLD = os.environ.get("WORKSPACEX_HYBRID_SEARCH_THRESHOLD", "0.5")
+
 WORKSPACEX_FULL_CONTEXT = os.environ.get("WORKSPACEX_FULL_CONTEXT", "False").lower() == "true"
 WORKSPACEX_FILE_MAX_COUNT = os.environ.get("WORKSPACEX_FILE_MAX_COUNT", None)
 WORKSPACEX_FILE_MAX_SIZE = os.environ.get("WORKSPACEX_FILE_MAX_SIZE", None)

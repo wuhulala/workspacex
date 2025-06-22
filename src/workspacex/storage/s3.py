@@ -71,10 +71,10 @@ class S3Repository(BaseRepository):
         return None
 
     @timeit(logging.info,
-            "S3Repository.store_workspace took {elapsed_time:.3f} seconds")
-    def store_workspace(self, workspace_meta: dict) -> None:
+            "S3Repository.store_index took {elapsed_time:.3f} seconds")
+    def store_index(self, index_data: dict) -> None:
         index = self._load_index()
-        index["workspace"] = workspace_meta
+        index["workspace"] = index_data
         self._save_index(index)
 
     @timeit(logging.info,

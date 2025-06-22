@@ -8,12 +8,15 @@ from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from workspacex.artifact import ArtifactType, Artifact
+from workspacex.artifact import ArtifactType, Artifact, HybridSearchResult, HybridSearchQuery
+from workspacex.base import WorkspaceConfig
+from workspacex.embedding.base import EmbeddingFactory
 from workspacex.noval_artifact import NovelArtifact
 from workspacex.code_artifact import CodeArtifact
 from workspacex.storage.base import BaseRepository
 from workspacex.storage.local import LocalPathRepository
 from workspacex.observer import WorkspaceObserver, get_observer
+from workspacex.vector.factory import VectorDBFactory
 
 
 class WorkSpace(BaseModel):
@@ -50,6 +53,7 @@ class WorkSpace(BaseModel):
         self.name = name or f"Workspace-{self.workspace_id[:8]}"
         self.created_at = datetime.now().isoformat()
         self.updated_at = self.created_at
+        self.workspace_config = WorkspaceConfig()
 
         # Initialize repository first
         if repository:
@@ -84,41 +88,10 @@ class WorkSpace(BaseModel):
                 if observer not in self.observers:  # Avoid duplicates
                     self.add_observer(observer)
 
-    def _load_workspace_data(self) -> Optional[Dict[str, Any]]:
-        """
-        Load workspace data from index.json and artifacts/{artifact_id}/index.json
+        self.embedder = EmbeddingFactory.get_embedder(self.workspace_config.embedding_config)
+        self.vector_db = VectorDBFactory.get_vector_db(self.workspace_config.vector_db_config)
 
-        Returns:
-            Dictionary containing workspace data if exists, None otherwise
-        """
-        try:
-            # 1. 读取 workspace 的 index.json
-            index_data = self.repository.get_index_data()
-            if not index_data:
-                return None
-            workspace_data = index_data.get("workspace")
-            if not workspace_data:
-                return None
-
-            # 2. 读取所有 artifact 的 index.json
-            artifacts = []
-            for artifact_meta in workspace_data.get("artifacts", []):
-                artifact_id = artifact_meta.get("id") or artifact_meta.get("artifact_id")
-                if not artifact_id:
-                    continue
-                artifact_data = self.repository.retrieve_artifact(artifact_id)
-                artifacts.append(Artifact.from_dict(artifact_data))
-
-            return {
-                "artifacts": artifacts,
-                "metadata": workspace_data.get("metadata", {}),
-                "created_at": workspace_data.get("created_at"),
-                "updated_at": workspace_data.get("updated_at")
-            }
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Error loading workspace data: {e}")
-            return None
+    
 
     @classmethod
     def from_local_storages(cls, workspace_id: Optional[str] = None,
@@ -149,6 +122,10 @@ class WorkSpace(BaseModel):
             clear_existing=False  # Always try to load existing data
         )
         return workspace
+
+    #########################################################
+    # Artifact Management
+    #########################################################
 
     async def create_artifact(
             self,
@@ -243,22 +220,6 @@ class WorkSpace(BaseModel):
 
         await self._notify_observers("create", artifact)
 
-
-    def get_artifact(self, artifact_id: str) -> Optional[Artifact]:
-        """Get artifact with the specified ID"""
-        for artifact in self.artifacts:
-            if artifact.artifact_id == artifact_id:
-                return artifact
-        return None
-
-
-    def get_terminal(self) -> str:
-        pass
-
-    def get_webpage_groups(self) -> list[Any] | None:
-        return self.list_artifacts(ArtifactType.WEB_PAGES)
-
-
     async def update_artifact(
             self,
             artifact_id: str,
@@ -321,8 +282,23 @@ class WorkSpace(BaseModel):
                 await self._notify_observers("delete", artifact)
                 return True
         return False
+    
+    def _store_artifact(self, artifact: Artifact) -> None:
+        """Store artifact in repository"""
 
-    def list_artifacts(self, filter_type: Optional[ArtifactType] = None) -> List[Artifact]:
+        self.repository.store_artifact(artifact=artifact)
+        logging.info(f"📦 store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
+
+        if artifact.embedding:
+            embedding_result = self.embedder.embed_artifact(artifact)
+            self.vector_db.insert(self.workspace_id, [embedding_result])
+            logging.info(f"📦 store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")    
+
+    #########################################################
+    # Artifact Retrieval
+    #########################################################
+
+    def list_artifacts(self, filter_types: Optional[List[ArtifactType]] = None) -> List[Artifact]:
         """
         List all artifacts in the workspace
         
@@ -332,9 +308,110 @@ class WorkSpace(BaseModel):
         Returns:
             List of artifacts
         """
-        if filter_type:
-            return [a for a in self.artifacts if a.artifact_type == filter_type]
+        if filter_types:
+            return [a for a in self.artifacts if a.artifact_type in filter_types]
         return self.artifacts
+    
+    def get_artifact(self, artifact_id: str) -> Optional[Artifact]:
+        """
+        Get an artifact by its ID
+        
+        Args:
+            artifact_id: Artifact ID
+            
+        Returns:
+            Artifact object if found, None otherwise
+        """
+        for artifact in self.artifacts:
+            if artifact.artifact_id == artifact_id:
+                return artifact
+        return None
+    
+    def get_file_content_by_artifact_id(self, artifact_id: str) -> str:
+        """
+        Get concatenated content of all artifacts with the same filename.
+        
+        Args:
+            artifact_id: artifact_id
+            
+        Returns:
+            Raw unescaped concatenated content of all matching artifacts
+        """
+        filename = artifact_id
+        for artifact in self.artifacts:
+            if artifact.artifact_id == artifact_id:
+                filename = artifact.metadata.get('filename')
+                break
+
+        result = ""
+        for artifact in self.artifacts:
+            if artifact.metadata.get('filename') == filename:
+                if artifact.content:
+                    result = result + artifact.content
+        decoded_string = result.encode('utf-8').decode('unicode_escape')
+        print(result)
+
+        return decoded_string
+    
+    #########################################################
+    # Hybrid Search
+    #########################################################
+
+
+    def retrieve_artifact(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
+        """
+        Retrieve an artifact by its ID
+        
+        Args:
+            query: Query string
+            filter_types: Optional filter types
+
+        TODO: 全文检索
+
+        Returns:
+            Artifact object if found, None otherwise
+        """
+        logging.info(f"🔍 retrieve_artifact search_query: {search_query}")
+        results = []
+        if not search_query:
+            logging.warning("🔍 retrieve_artifact search_query is None")
+            return None
+        
+        if not search_query.limit:
+            search_query.limit = self.workspace_config.hybrid_search_config.top_k
+        threshold = self.workspace_config.hybrid_search_config.threshold
+
+        # 1. Embed query
+        if self.workspace_config.hybrid_search_config.enabled:
+            query_embedding = self.embedder.embed_query(search_query.query)
+
+            # 2. Search vector db
+            search_results = self.vector_db.search(self.workspace_id, [query_embedding], filter={}, threshold=threshold, limit=search_query.limit)
+            if not search_results:
+                logging.warning("🔍 retrieve_artifact search_results is None")
+                return None
+            
+            if not search_results.docs:
+                logging.warning("🔍 retrieve_artifact search_results.docs is None")
+                return None
+            
+            for doc in search_results.docs:
+                if not doc.metadata:
+                    logging.warning("🔍 retrieve_artifact doc.metadata is None")
+                    continue
+                
+                artifact = self.get_artifact(doc.metadata.artifact_id)
+                if not artifact:
+                    logging.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
+                    continue
+                results.append(HybridSearchResult(artifact=artifact, score=doc.score, created_at=doc.created_at, similarity=doc.similarity, distance=doc.distance))
+        
+        logging.info(f"🔍 retrieve_artifact results: {results}")
+        return results
+    
+    #########################################################
+    # Observer Management
+    #########################################################
 
     def add_observer(self, observer: WorkspaceObserver) -> None:
         """
@@ -382,12 +459,10 @@ class WorkSpace(BaseModel):
                 print(f"Observer notification failed: {e}")
         return results
 
-    def _store_artifact(self, artifact: Artifact) -> None:
-        """Store artifact in repository"""
-        artifact_data = artifact.to_dict()
-        logging.info(f"📦 store_artifact[{artifact.artifact_type}]:{artifact.artifact_id}")
-        self.repository.store_artifact(artifact=artifact)
-        
+
+    #########################################################
+    # Workspace Management
+    #########################################################
 
     def save(self) -> str:
         """
@@ -418,102 +493,43 @@ class WorkSpace(BaseModel):
         return self.repository.store_workspace(
             workspace_meta=workspace_data
         )
-
-    @classmethod
-    def load(cls, workspace_id: str, storage_path: Optional[str] = None) -> Optional["WorkSpace"]:
+    
+    def _load_workspace_data(self) -> Optional[Dict[str, Any]]:
         """
-        Load workspace
-        
-        Args:
-            workspace_id: Workspace ID
-            storage_path: Optional storage path
-            
+        Load workspace data from index.json and artifacts/{artifact_id}/index.json
+
         Returns:
-            Loaded workspace, or None if it doesn't exist
+            Dictionary containing workspace data if exists, None otherwise
         """
-        # Initialize storage path
-        storage_dir = storage_path or os.path.join("data", "workspaces", workspace_id)
-        repository = LocalPathRepository(storage_dir)
+        try:
+            # 1. retrieve workspace index.json
+            index_data = self.repository.get_index_data()
+            if not index_data:
+                return None
+            workspace_data = index_data.get("workspace")
+            if not workspace_data:
+                return None
 
-        # Get workspace versions
-        workspace_versions = repository.index.get("versions", {})
-        if not workspace_versions:
+            # 2. retrieve all artifacts 
+            artifacts = []
+            for artifact_meta in workspace_data.get("artifacts", []):
+                artifact_id = artifact_meta.get("id") or artifact_meta.get("artifact_id")
+                if not artifact_id:
+                    continue
+                artifact_data = self.repository.retrieve_artifact(artifact_id)
+                artifacts.append(Artifact.from_dict(artifact_data))
+
+            return {
+                "artifacts": artifacts,
+                "metadata": workspace_data.get("metadata", {}),
+                "created_at": workspace_data.get("created_at"),
+                "updated_at": workspace_data.get("updated_at")
+            }
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error loading workspace data: {e}")
             return None
-
-        # Find latest version that belongs to this workspace
-        latest_version = None
-        latest_timestamp = 0
-        for version_id, version_info in workspace_versions.items():
-            if version_info.get("metadata", {}).get("workspace_id") == workspace_id:
-                if version_info.get("timestamp", 0) > latest_timestamp:
-                    latest_timestamp = version_info.get("timestamp", 0)
-                    latest_version = version_id
-
-        if not latest_version:
-            return None
-
-        workspace_data = repository.retrieve(latest_version)
-        if not workspace_data:
-            return None
-
-        # Create workspace instance
-        workspace = cls(
-            workspace_id=workspace_data["workspace_id"],
-            name=workspace_data["name"],
-            storage_path=storage_dir
-        )
-        workspace.created_at = workspace_data["created_at"]
-        workspace.updated_at = workspace_data["updated_at"]
-        workspace.metadata = workspace_data["metadata"]
-
-        # Load artifacts
-        workspace_artifacts = workspace_data.get("artifacts", [])
-        for artifact_data in workspace_artifacts:
-            artifact_id = artifact_data.get("artifact_id")
-            if artifact_id:
-                artifact_versions = repository.get_versions(artifact_id)
-                if artifact_versions:
-                    # Find latest version
-                    latest_artifact_version = None
-                    latest_artifact_timestamp = 0
-                    for version_info in artifact_versions:
-                        if version_info.get("timestamp", 0) > latest_artifact_timestamp:
-                            latest_artifact_timestamp = version_info.get("timestamp", 0)
-                            latest_artifact_version = version_info.get("id")
-
-                    if latest_artifact_version:
-                        artifact_content = repository.retrieve(latest_artifact_version)
-                        if artifact_content:
-                            workspace.artifacts.append(Artifact.from_dict(artifact_content))
-
-        return workspace
-
-    def get_file_content_by_artifact_id(self, artifact_id: str) -> str:
-        """
-        Get concatenated content of all artifacts with the same filename.
         
-        Args:
-            artifact_id: artifact_id
-            
-        Returns:
-            Raw unescaped concatenated content of all matching artifacts
-        """
-        filename = artifact_id
-        for artifact in self.artifacts:
-            if artifact.artifact_id == artifact_id:
-                filename = artifact.metadata.get('filename')
-                break
-
-        result = ""
-        for artifact in self.artifacts:
-            if artifact.metadata.get('filename') == filename:
-                if artifact.content:
-                    result = result + artifact.content
-        decoded_string = result.encode('utf-8').decode('unicode_escape')
-        print(result)
-
-        return decoded_string
-
     def generate_tree_data(self) -> Dict[str, Any]:
         """
         Generate a tree structure based on artifacts and their sublist recursively.

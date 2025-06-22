@@ -5,9 +5,11 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from workspacex.artifact import Artifact
+from workspacex.base import EmbeddingConfig
 
 
 class EmbeddingsConfig(BaseModel):
+    provider: str = "openai"
     api_key: str
     model_name: str = "text-embedding-3-small"
     base_url: str = "https://api.openai.com/v1"
@@ -21,6 +23,8 @@ class EmbeddingsMetadata(BaseModel):
     embedding_model: str = Field(..., description="Embedding model")
     created_at: int = Field(..., description="Created at")
     updated_at: int = Field(..., description="Updated at")
+    artifact_type: str = Field(..., description="Artifact type")
+    artifact_name: str = Field(..., description="Artifact name")
 
     model_config = ConfigDict(extra="allow")
 
@@ -44,6 +48,11 @@ class Embeddings(ABC):
     def embed_artifacts(self, artifacts: list[Artifact]) -> list[EmbeddingsResult]:
         """Embed artifacts."""
         raise NotImplementedError
+    
+    @abstractmethod
+    def embed_artifact(self, artifact: Artifact) -> EmbeddingsResult:
+        """Embed artifact."""
+        raise NotImplementedError
 
     @abstractmethod
     def embed_query(self, text: str) -> list[float]:
@@ -53,8 +62,27 @@ class Embeddings(ABC):
     async def async_embed_artifacts(self, artifacts: list[Artifact]) -> list[EmbeddingsResult]:
         """Asynchronous Embed artifacts."""
         raise NotImplementedError
+    
+    @abstractmethod
+    def async_embed_artifact(self, artifact: Artifact) -> EmbeddingsResult:
+        """Asynchronous Embed artifact."""
+        raise NotImplementedError
 
     async def async_embed_query(self, text: str) -> list[float]:
         """Asynchronous Embed query text."""
         raise NotImplementedError
-    
+
+
+
+class EmbeddingFactory:
+
+    @staticmethod
+    def get_embedder(config: EmbeddingConfig) -> Embeddings:
+        if config.provider == "openai":
+            from workspacex.embedding.openai_compatible import OpenAICompatibleEmbeddings
+            return OpenAICompatibleEmbeddings(config)
+        elif config.provider == "ollama":
+            from workspacex.embedding.ollama import OllamaEmbeddings
+            return OllamaEmbeddings(config)
+        else:
+            raise ValueError(f"Unsupported embedding provider: {config.provider}")

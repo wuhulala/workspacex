@@ -104,16 +104,16 @@ class LocalPathRepository(BaseRepository):
                 return json.load(f)
         return None
 
-    def store_workspace(self, workspace_meta: dict) -> None:
+    def store_index(self, index_data: dict) -> None:
         """
         Store the workspace information in index.json, versioning the previous index.
         Args:
-            workspace_meta: Metadata dictionary for the workspace
+            index_data: Index data dictionary for the workspace
         Returns:
             None
         """
         index = self._load_index()
-        index["workspace"] = workspace_meta
+        index["workspace"] = index_data
         self._save_index(index)
 
     def store_artifact(self, artifact: "Artifact") -> None:

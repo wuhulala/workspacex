@@ -6,9 +6,10 @@ from workspacex.artifact import Artifact
 from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult, EmbeddingsMetadata
 from workspacex.utils.timeit import timeit
 from openai import OpenAI
+from workspacex.embedding.embeddings_base import EmbeddingsBase
 
 
-class OpenAICompatibleEmbeddings(Embeddings):
+class OpenAICompatibleEmbeddings(EmbeddingsBase):
     """
     OpenAI compatible embeddings using OpenAI-compatible HTTP API.
 
@@ -24,46 +25,9 @@ class OpenAICompatibleEmbeddings(Embeddings):
         Args:
             config (EmbeddingsConfig): Configuration for embedding model and API.
         """
-        self.config = config
+        super().__init__(config)
         self.client = OpenAI(api_key=config.api_key, base_url=config.base_url)
 
-    def embed_artifacts(self,
-                        artifacts: List[Artifact]) -> List[EmbeddingsResult]:
-        """
-        Embed a list of artifacts using OpenAI-compatible HTTP API.
-        Args:
-            artifacts (List[Artifact]): List of artifacts to embed.
-        Returns:
-            List[EmbeddingsResult]: List of embedding results.
-        """
-        results = []
-        for artifact in artifacts:
-            result = self._embed_artifact(artifact)
-            results.append(result)
-        return results
-
-    def _embed_artifact(self, artifact: Artifact) -> EmbeddingsResult:
-        """
-        Embed a single artifact using OpenAI-compatible HTTP API.
-        Args:
-            artifact (Artifact): Artifact to embed.
-        Returns:
-            EmbeddingsResult: Embedding result for the artifact.
-        """
-        embedding = self.embed_query(artifact.get_embedding_text())
-        now = int(time.time())
-        metadata = EmbeddingsMetadata(
-            artifact_id=artifact.artifact_id,
-            embedding_model=self.config.model_name,
-            created_at=now,
-            updated_at=now
-        )
-        return EmbeddingsResult(
-            id=artifact.artifact_id,
-            embedding=embedding,
-            content=artifact.get_embedding_text(),
-            metadata=metadata
-        )
 
     @timeit(logging.info,
             "OpenAI embedding query completed in {elapsed_time:.3f} seconds")
@@ -87,42 +51,7 @@ class OpenAICompatibleEmbeddings(Embeddings):
             import traceback
             traceback.print_exc()
             raise RuntimeError(f"OpenAI embedding API error: {e}")
-
-    async def async_embed_artifacts(
-            self, artifacts: List[Artifact]) -> List[EmbeddingsResult]:
-        """
-        Asynchronously embed a list of artifacts using OpenAI-compatible HTTP API.
-        Args:
-            artifacts (List[Artifact]): List of artifacts to embed.
-        Returns:
-            List[EmbeddingsResult]: List of embedding results.
-        """
-        return await asyncio.gather(
-            *[self._async_embed_artifact(artifact) for artifact in artifacts])
-
-    async def _async_embed_artifact(self,
-                                    artifact: Artifact) -> EmbeddingsResult:
-        """
-        Asynchronously embed a single artifact using OpenAI-compatible HTTP API.
-        Args:
-            artifact (Artifact): Artifact to embed.
-        Returns:
-            EmbeddingsResult: Embedding result for the artifact.
-        """
-        embedding = await self.async_embed_query(artifact.get_embedding_text())
-        now = int(time.time())
-        metadata = EmbeddingsMetadata(
-            artifact_id=artifact.id,
-            embedding_model=self.config.model_name,
-            created_at=now,
-            updated_at=now
-        )
-        return EmbeddingsResult(
-            id=artifact.artifact_id,
-            embedding=embedding,
-            content=artifact.get_embedding_text(),
-            metadata=metadata
-        )
+        
 
     @timeit(
         logging.info,

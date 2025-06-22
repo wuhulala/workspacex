@@ -7,9 +7,10 @@ import requests
 import aiohttp
 from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult, EmbeddingsMetadata
 from workspacex.artifact import Artifact
+from workspacex.embedding.embeddings_base import EmbeddingsBase
 
 
-class OllamaEmbeddings(Embeddings):
+class OllamaEmbeddings(EmbeddingsBase):
     """
     Embedding implementation using Ollama HTTP API.
     """
@@ -19,46 +20,9 @@ class OllamaEmbeddings(Embeddings):
         Args:
             config (EmbeddingsConfig): Configuration for embedding model and API.
         """
-        self.config = config
-
-    def embed_artifacts(self, artifacts: List[Artifact]) -> List[EmbeddingsResult]:
-        """
-        Embed a list of artifacts using Ollama HTTP API.
-        Args:
-            artifacts (List[Artifact]): List of artifacts to embed.
-        Returns:
-            List[EmbeddingsResult]: List of embedding results.
-        """
-        results = []
-        for artifact in artifacts:
-            result = self._embed_artifact(artifact)
-            results.append(result)
-        return results
-
-    def _embed_artifact(self, artifact: Artifact) -> EmbeddingsResult:
-        """
-        Embed a single artifact using Ollama HTTP API.
-        Args:
-            artifact (Artifact): Artifact to embed.
-        Returns:
-            EmbeddingsResult: Embedding result for the artifact.
-        """
-        embedding = self.embed_query(artifact.get_embedding_text())
-        now = int(time.time())
-        metadata = EmbeddingsMetadata(
-            artifact_id=artifact.artifact_id,
-            embedding_model=self.config.model_name,
-            created_at=now,
-            updated_at=now
-        )
-        return EmbeddingsResult(
-            id=artifact.artifact_id,
-            embedding=embedding,
-            content=artifact.get_embedding_text(),
-            metadata=metadata
-        )
+        super().__init__(config)
     
-    @timeit(logging.info, "Ollama embedding query completed in {elapsed_time:.2f} seconds")
+    @timeit(logging.info, "Ollama embedding query completed in {elapsed_time:.3f} seconds")
     def embed_query(self, text: str) -> List[float]:
         """
         Embed a query string using Ollama HTTP API.
@@ -84,40 +48,7 @@ class OllamaEmbeddings(Embeddings):
             traceback.print_exc()
             raise RuntimeError(f"Ollama embedding API error: {e}")
 
-    async def async_embed_artifacts(self, artifacts: List[Artifact]) -> List[EmbeddingsResult]:
-        """
-        Asynchronously embed a list of artifacts using Ollama HTTP API.
-        Args:
-            artifacts (List[Artifact]): List of artifacts to embed.
-        Returns:
-            List[EmbeddingsResult]: List of embedding results.
-        """
-        return await asyncio.gather(*[self._async_embed_artifact(artifact) for artifact in artifacts])
-
-    async def _async_embed_artifact(self, artifact: Artifact) -> EmbeddingsResult:
-        """
-        Asynchronously embed a single artifact using Ollama HTTP API.
-        Args:
-            artifact (Artifact): Artifact to embed.
-        Returns:
-            EmbeddingsResult: Embedding result for the artifact.
-        """
-        embedding = await self.async_embed_query(artifact.get_embedding_text())
-        now = int(time.time())
-        metadata = EmbeddingsMetadata(
-            artifact_id=artifact.artifact_id,
-            embedding_model=self.config.model_name,
-            created_at=now,
-            updated_at=now
-        )
-        return EmbeddingsResult(
-            id=artifact.artifact_id,
-            embedding=embedding,
-            content=artifact.get_embedding_text(),
-            metadata=metadata
-        )
-
-    @timeit(logging.info, "Ollama async embedding query completed in {elapsed_time:.2f} seconds")
+    @timeit(logging.info, "Ollama async embedding query completed in {elapsed_time:.3f} seconds")
     async def async_embed_query(self, text: str) -> List[float]:
         """
         Asynchronously embed a query string using Ollama HTTP API.
@@ -144,6 +75,10 @@ class OllamaEmbeddings(Embeddings):
     def resolve_embedding(data: dict) -> List[float]:
         """
         Resolve the embedding from the response data.
+        Args:
+            data (dict): Response data from Ollama API.
+        Returns:
+            List[float]: Embedding vector.
         """
         if "embeddings" in data and len(data["embeddings"]) > 0:
             return data["embeddings"][0]

@@ -4,7 +4,7 @@ from typing import List
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.embedding.base import EmbeddingsConfig
 from workspacex.embedding.ollama import OllamaEmbeddings
-from workspacex.vector.dbs.chroma import ChromaClient
+from workspacex.vector.dbs.chroma import ChromaVectorDB
 from dotenv import load_dotenv
 import os
 
@@ -24,7 +24,7 @@ async def main():
     embeddings = OllamaEmbeddings(config)
     
     # Initialize ChromaDB client
-    vector_store = ChromaClient()
+    vector_store = ChromaVectorDB()
     
     # Create sample artifacts
     artifacts = [

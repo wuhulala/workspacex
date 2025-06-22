@@ -7,6 +7,7 @@ from chromadb.utils.batch_utils import create_batches
 from typing import Optional
 
 from workspacex.embedding.base import EmbeddingsResult, EmbeddingsResults
+from workspacex.vector.dbs.base import VectorDB
 from workspacex.config import (
     CHROMA_DATA_PATH,
     CHROMA_HTTP_HOST,
@@ -20,8 +21,8 @@ from workspacex.config import (
 )
 
 
-
-class ChromaClient:
+class ChromaVectorDB(VectorDB):
+    """ChromaDB implementation of the VectorDB interface."""
     def __init__(self):
         settings_dict = {
             "allow_reset": True,
@@ -62,7 +63,7 @@ class ChromaClient:
         return self.client.delete_collection(name=collection_name)
 
     def search(
-        self, collection_name: str, vectors: list[list[float | int]], limit: int
+        self, collection_name: str, vectors: list[list[float | int]], filter: dict, threshold: float, limit: int
     ) -> Optional[EmbeddingsResults]:
         """Search for nearest neighbors based on vector similarity.
         
@@ -79,6 +80,7 @@ class ChromaClient:
             if collection:
                 result = collection.query(
                     query_embeddings=vectors,
+                    where=filter,
                     n_results=limit,
                 )
 
@@ -88,7 +90,7 @@ class ChromaClient:
                 distances = [2 - dist for dist in distances]
                 distances = [[dist / 2 for dist in distances]]
 
-                docs = self._convert2_embedding_result_with_score(result, distances=distances)
+                docs = self._convert2_embedding_result_with_score(result, distances=distances, threshold=threshold)
 
                 return EmbeddingsResults(
                     **{
@@ -155,7 +157,7 @@ class ChromaClient:
             )
         return None
     
-    def _convert2_embedding_result_with_score(self, result, distances=None):
+    def _convert2_embedding_result_with_score(self, result, distances=None, threshold=None):
         """Convert ChromaDB result to list of EmbeddingsResult.
         
         Args:
@@ -184,6 +186,8 @@ class ChromaClient:
         ):
             # Metadata is already a dict since we stored it that way
             metadata_obj = EmbeddingsMetadata.model_validate(metadata)
+            if threshold and score < threshold:
+                continue
             
             docs.append(
                 EmbeddingsResult(

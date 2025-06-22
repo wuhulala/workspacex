@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum, auto
 from typing import Dict, Any, Optional, ClassVar, List, TYPE_CHECKING
-from pydantic import Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import os
 
 from workspacex.base import Output
@@ -55,6 +55,7 @@ class Artifact(Output):
     current_version: str = Field(default="", description="Current version of the artifact")
     version_history: list = Field(default_factory=list, description="History of versions for the artifact")
     create_file: bool = Field(default=False, description="Flag to indicate if a file should be created")
+    embedding: bool = Field(default=False, description="Flag to indicate if an embedding should be saved")
     sublist: List['Artifact'] = Field(default_factory=list, description="List of sub-artifacts (children)")
 
     # Use model_validator for initialization logic
@@ -197,3 +198,16 @@ class Artifact(Output):
         Get the reranked text for the artifact.
         """
         return str(self.content)
+
+class HybridSearchQuery(BaseModel):
+    query: str = Field(..., description="Query string")
+    filter_types: Optional[List[ArtifactType]] = Field(default=None, description="Filter types")
+    limit: int = Field(default=10, description="Limit")
+
+class HybridSearchResult(BaseModel):
+    """
+    Search result for an artifact
+    """
+    artifact: Artifact = Field(..., description="Artifact")
+    score: float = Field(..., description="Score")
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Creation timestamp")

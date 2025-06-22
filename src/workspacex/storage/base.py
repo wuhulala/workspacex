@@ -11,13 +11,21 @@ class BaseRepository(ABC):
     Abstract base class for repositories.
     Defines the interface for storing and retrieving workspace and artifact data.
     """
-
     @abstractmethod
-    def store_workspace(self, workspace_meta: Dict[str, Any]) -> None:
+    def get_index_data(self) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve the workspace index data as a dictionary.
+        Returns:
+            The index data as a dictionary, or None if not found.
+        """
+        pass
+    
+    @abstractmethod
+    def store_index(self, index_data: Dict[str, Any]) -> None:
         """
         Store the workspace metadata.
         Args:
-            workspace_meta: Metadata dictionary for the workspace
+            index_data: Index data dictionary for the workspace
         Returns:
             None
         """
@@ -45,14 +53,7 @@ class BaseRepository(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_index_data(self) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve the workspace index data as a dictionary.
-        Returns:
-            The index data as a dictionary, or None if not found.
-        """
-        pass
+   
 
     def _artifact_dir(self, artifact_id: str) -> str:
         """
