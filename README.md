@@ -52,6 +52,17 @@ if __name__ == '__main__':
     asyncio.run(workspace.create_artifact(ArtifactType.TEXT, "artifact_001"))
 ```
 
+### More Examples
+
+For more detailed examples on features like reranking, storage/embedding backends, and hybrid search, please refer to the scripts in the `src/examples/` directory.
+
+To run an example:
+```bash
+export PYTHONPATH=src
+python src/examples/embeddings/openai_example.py
+```
+
+
 ### Running the Reranker Server
 
 1. Install server dependencies:
@@ -86,16 +97,6 @@ RERANKER_RELOAD=False
 ```
 
 The server will start on http://localhost:8000. Interactive API docs are available at `/docs` and `/redoc`. It provides endpoints like `/rerank` and a Dify-compatible `/dify/rerank`.
-
-### More Examples
-
-For more detailed examples on features like reranking, storage/embedding backends, and hybrid search, please refer to the scripts in the `src/examples/` directory.
-
-To run an example:
-```bash
-export PYTHONPATH=src
-python src/examples/embeddings/openai_example.py
-```
 
 ---
 
