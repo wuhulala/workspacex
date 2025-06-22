@@ -304,7 +304,7 @@ class ChromaVectorDB(VectorDB):
                 elif filter:
                     collection.delete(where=filter)
                 else:
-                    collection.delete(where={})
+                    self.client.delete_collection(name=collection_name)
         except Exception as e:
             # If collection doesn't exist, that's fine - nothing to delete
             logging.debug(

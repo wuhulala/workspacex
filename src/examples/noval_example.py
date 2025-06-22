@@ -7,6 +7,18 @@ from workspacex.workspace import WorkSpace
 import asyncio
 
 NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval.txt')
+"""
+noval.txt 内容如下：
+
+第001章 星空中的青铜巨棺
+　　生命是世间最伟大的奇迹。
+　　
+
+
+第002章 素问
+　　“上古之人，春秋皆度百岁，而动作不衰。”叶凡合上《黄帝内经》，对于素问篇所载的上古时代悠然神往。
+
+"""
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +39,7 @@ async def create_novel_artifact_example(embedding_flag: bool = False) -> None:
     """
     ensure_output_folder(SAVE_CHAPTERS_BASE_FOLDER)
     # Create a workspace
-    ws = WorkSpace(workspace_id="novel_example_workspace_v2", name="Novel Example Workspace", clear_existing=True)
+    ws = WorkSpace(workspace_id="novel_example_workspace_v3", name="Novel Example Workspace", clear_existing=True)
     # Create the novel artifact and save chapters
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",
@@ -92,9 +104,31 @@ async def create_novel_artifact_s3_example() -> None:
 async def hybrid_search_example(ws: WorkSpace) -> None:
     """
     Example: Hybrid search for a novel artifact.
+    
+    Args:
+        ws: WorkSpace instance to perform search on
     """
-    results = await ws.retrieve_artifact(HybridSearchQuery(query="旅行者二号?", filter_types=[ArtifactType.NOVEL]))
-    print(f"Hybrid search results: {results}")
+    # Using a meaningful search query that should match content
+    search_query = "上古时代的人们"  # This should match content about ancient times in chapter 2
+    logging.info(f"Performing hybrid search with query: '{search_query}'")
+    
+    results = await ws.retrieve_artifact(
+        HybridSearchQuery(
+            query=search_query,
+            filter_types=[ArtifactType.NOVEL]
+        )
+    )
+    
+    if not results:
+        logging.info("No results found")
+        return
+        
+    logging.info(f"Found {len(results)} results:")
+    for i, result in enumerate(results, 1):
+        logging.info(f"\nResult #{i}:")
+        logging.info(f"Chapter ID: {result.artifact.artifact_id}")
+        logging.info(f"Similarity Score: {result.score:.4f}")
+        logging.info(f"Content Preview: {result.artifact.content[:200]}...")
 
 if __name__ == "__main__":
     asyncio.run(create_novel_artifact_example(embedding_flag=True))

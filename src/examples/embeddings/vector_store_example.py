@@ -68,7 +68,9 @@ async def main():
     search_results = vector_store.search(
         collection_name=collection_name,
         vectors=[query_embedding],
-        limit=2
+        limit=2,
+        filter={},
+        threshold=0.5
     )
     
     if search_results and search_results.docs:
