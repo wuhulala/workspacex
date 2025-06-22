@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from workspacex.artifact import ArtifactType, Artifact, HybridSearchResult, HybridSearchQuery
 from workspacex.base import WorkspaceConfig
+from workspacex.chunk.base import ChunkerFactory
 from workspacex.embedding.base import EmbeddingFactory, Embeddings
 from workspacex.noval_artifact import NovelArtifact
 from workspacex.code_artifact import CodeArtifact
@@ -94,6 +95,11 @@ class WorkSpace(BaseModel):
 
         self.embedder = EmbeddingFactory.get_embedder(self.workspace_config.embedding_config)
         self.vector_db = VectorDBFactory.get_vector_db(self.workspace_config.vector_db_config)
+        if self.workspace_config.chunk_config.enabled:
+            self.chunker = ChunkerFactory.get_chunker(self.workspace_config.chunk_config)
+        else:
+            self.chunker = None
+
         if clear_existing:
             self.vector_db.delete(self.workspace_id)
 
@@ -300,19 +306,39 @@ class WorkSpace(BaseModel):
         logging.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
 
         if artifact.embedding:
-            if artifact.get_embedding_text():
-                embedding_result = self.embedder.embed_artifact(artifact)
-                self.vector_db.insert(self.workspace_id, [embedding_result])
-                logging.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
-            else:
-                logging.info(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_text is empty")
-
+            self._store_artifact_embedding(artifact)
             if artifact.sublist and len(artifact.sublist) > 0:
                 for subartifact in artifact.sublist:
-                    if subartifact.embedding and subartifact.get_embedding_text():
-                        embedding_result = self.embedder.embed_artifact(subartifact)
-                        self.vector_db.insert(self.workspace_id, [embedding_result])
-                        logging.info(f"📦[EMBEDDING]✅ store_sub_artifact[{subartifact.artifact_type}]:{subartifact.artifact_id} embedding_result finished")
+                    self._store_artifact_embedding(subartifact)
+
+    def _store_artifact_embedding(self, artifact: Artifact) -> None:
+        """Store artifact embedding"""
+        # if embedding is not enabled, skip
+        if not artifact.embedding or not artifact.get_embedding_text():
+            logging.info(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding is not enabled or embedding_text is empty")
+            return
+        
+        # if chunking is enabled, chunk the artifact first
+        if self.workspace_config.chunk_config.enabled:
+            self._chunk_artifact(artifact)
+            return
+        
+        # else, embed the artifact directly
+        embedding_result = self.embedder.embed_artifact(artifact)
+        self.vector_db.insert(self.workspace_id, [embedding_result])
+        logging.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+                
+    def _chunk_artifact(self, artifact: Artifact) -> None:
+        """Chunk artifact"""
+        if self.chunker:
+            chunks = self.chunker.chunk(artifact)
+            logging.info(f"📦[CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
+            if chunks:
+                embedding_results = self.embedder.embed_artifacts(chunks)
+                self.vector_db.insert(self.workspace_id, embedding_results)
+                logging.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+            else:
+                logging.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
 
     #########################################################
     # Artifact Retrieval

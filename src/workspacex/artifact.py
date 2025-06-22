@@ -24,6 +24,7 @@ class ArtifactType(Enum):
     DIR = "DIR"
     CUSTOM = "CUSTOM"
     NOVEL = "NOVEL"
+    CHUNK = "CHUNK"
 
 
 

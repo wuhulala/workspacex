@@ -16,7 +16,7 @@ noval.txt 内容如下：
 
 
 第002章 素问
-　　“上古之人，春秋皆度百岁，而动作不衰。”叶凡合上《黄帝内经》，对于素问篇所载的上古时代悠然神往。
+　　"上古之人，春秋皆度百岁，而动作不衰。"叶凡合上《黄帝内经》，对于素问篇所载的上古时代悠然神往。
 
 """
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
@@ -33,7 +33,7 @@ def ensure_output_folder(folder_path: str) -> None:
         os.makedirs(folder_path)
 
 
-async def create_novel_artifact_example(embedding_flag: bool = False) -> None:
+async def create_novel_artifact_example(embedding_flag: bool = False, chunker_flag: bool = False) -> None:
     """
     Example: Create a NovelArtifact from a novel file, split by chapters, and save chapters to files.
     """
@@ -53,6 +53,8 @@ async def create_novel_artifact_example(embedding_flag: bool = False) -> None:
     # Print first 3 chapter titles as a sample
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
         logging.info(f"Chapter {i+1}: {subartifact.content[:100]}")
+    if chunker_flag:
+        await chunk_example(ws)
 
     if embedding_flag:
         logging.info("🔍 Hybrid search example")
@@ -130,7 +132,47 @@ async def hybrid_search_example(ws: WorkSpace) -> None:
         logging.info(f"Similarity Score: {result.score:.4f}")
         logging.info(f"Content Preview: {result.artifact.content[:200]}...")
 
+async def chunk_example(ws: WorkSpace) -> None:
+    """
+    Example: Demonstrate text chunking functionality on novel artifacts.
+    
+    Args:
+        ws: WorkSpace instance containing the artifacts to chunk
+    """
+    from workspacex.chunk.base import ChunkConfig
+    from workspacex.chunk.character import CharacterChunker
+
+    # Get the first novel artifact
+    artifacts = ws.list_artifacts(filter_types=[ArtifactType.NOVEL])
+    if not artifacts:
+        logging.info("No novel artifacts found")
+        return
+
+    novel_artifact = artifacts[0]
+
+    # Create a chunker with custom configuration
+    chunker = CharacterChunker(
+        config=ChunkConfig(
+            chunk_size=100,  # Smaller chunks for demonstration
+            chunk_overlap=50
+        )
+    )
+    
+    # Chunk the artifact
+    chunks = chunker.chunk(novel_artifact.sublist[0])
+    
+    # Display chunking results
+    logging.info(f"\n📚 Chunking Results for artifact {novel_artifact.sublist[0].artifact_id}:")
+    logging.info(f"Total chunks created: {len(chunks)}")
+    
+    # Show first 3 chunks as examples
+    for i, chunk in enumerate(chunks[:3], 1):
+        logging.info(f"\nChunk #{i}:")
+        logging.info(f"Size: {chunk.chunk_metadata.chunk_size} characters")
+        logging.info(f"Index: {chunk.chunk_metadata.chunk_index}")
+        logging.info(f"Content preview: {chunk.content[:100]}...")
+
 if __name__ == "__main__":
-    asyncio.run(create_novel_artifact_example(embedding_flag=True))
+    asyncio.run(create_novel_artifact_example(embedding_flag=False, chunker_flag=True))
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())

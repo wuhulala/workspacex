@@ -11,13 +11,12 @@ WORKSPACEX_DATA_DIR = os.environ.get("WORKSPACEX_DATA_DIR", f"{DATA_DIR}/workspa
 
 
 ####################################
-# Config for Extraction
+# Config for Chunking
 ####################################
-
+WORKSPACEX_ENABLE_CHUNKING = os.environ.get("WORKSPACEX_ENABLE_CHUNKING", "False").lower() == "true"
+WORKSPACEX_CHUNK_TEXT_SPLITTER = os.environ.get("WORKSPACEX_CHUNK_TEXT_SPLITTER", "character")
 WORKSPACEX_CHUNK_SIZE = os.environ.get("WORKSPACEX_CHUNK_SIZE", "1000")
 WORKSPACEX_CHUNK_OVERLAP = os.environ.get("WORKSPACEX_CHUNK_OVERLAP", "100")
-WORKSPACEX_PDF_EXTRACT_IMAGES = os.environ.get("WORKSPACEX_PDF_EXTRACT_IMAGES", "False").lower() == "true"
-WORKSPACEX_TEXT_SPLITTER = os.environ.get("WORKSPACEX_TEXT_SPLITTER", "")
 
 
 ####################################
