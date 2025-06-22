@@ -63,7 +63,7 @@ python src/examples/embeddings/openai_example.py
 ```
 
 
-### Running the Reranker Server
+## Running the Reranker Server[Optional]
 
 1. Install server dependencies:
 ```bash
