@@ -409,14 +409,16 @@ class WorkSpace(BaseModel):
         
         if not search_query.limit:
             search_query.limit = self.workspace_config.hybrid_search_config.top_k
-        threshold = self.workspace_config.hybrid_search_config.threshold
+        
+        if not search_query.threshold:
+            search_query.threshold = self.workspace_config.hybrid_search_config.threshold
 
         # 1. Embed query
         if self.workspace_config.hybrid_search_config.enabled:
             query_embedding = self.embedder.embed_query(search_query.query)
 
             # 2. Search vector db
-            search_results = self.vector_db.search(self.workspace_id, [query_embedding], filter={}, threshold=threshold, limit=search_query.limit)
+            search_results = self.vector_db.search(self.workspace_id, [query_embedding], filter={}, threshold=search_query.threshold, limit=search_query.limit)
             if not search_results:
                 logging.warning("🔍 retrieve_artifact search_results is None")
                 return None
@@ -435,7 +437,7 @@ class WorkSpace(BaseModel):
                     continue
                 results.append(HybridSearchResult(artifact=artifact, score=doc.score))
         
-        logging.info(f"🔍 retrieve_artifact results: {results}")
+        logging.info(f"🔍 retrieve_artifact results size: {len(results)}")
         return results
     
     #########################################################

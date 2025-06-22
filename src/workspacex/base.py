@@ -14,7 +14,7 @@ from workspacex.vector.factory import VectorDBConfig
 class HybridSearchConfig(BaseModel):
     enabled: bool = Field(default=False, description="enabled flag")
     top_k: int = Field(default=10, description="Top K results")
-    threshold: float = Field(default=0.5, description="Threshold for similarity search")
+    threshold: float = Field(default=0.8, description="Threshold for similarity search")
 
 class WorkspaceConfig:
     enable_hybrid_search: bool = Field(default=False, description="Enable hybrid search")
