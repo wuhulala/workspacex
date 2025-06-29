@@ -163,4 +163,25 @@ class LocalPathRepository(BaseRepository):
         with open(self.index_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-
+    def get_subaritfact_content(self, artifact_id: str, parent_id: str) -> Optional[str]:
+        """
+        Retrieve the content of a sub-artifact by artifact ID and parent ID.
+        
+        Args:
+            artifact_id: The ID of the parent artifact
+            parent_id: The ID of the sub-artifact (this parameter name seems incorrect, should be sub_id)
+            
+        Returns:
+            The content of the sub-artifact as a string, or None if not found
+        """
+        data_path = self._sub_data_path(artifact_id=parent_id, sub_id=artifact_id, ext="txt")
+        if data_path.exists():
+            try:
+                with open(data_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except (IOError, OSError) as e:
+                # Log error or handle file reading issues
+                return None
+        
+        return None
+        

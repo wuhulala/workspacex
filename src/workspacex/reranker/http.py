@@ -72,7 +72,7 @@ class HttpRerankRunner(BaseRerankRunner):
         response.raise_for_status()
         data = response.json()
         results = []
-        for item in data.get('results', []):
+        for item in data.get('docs', []):
             score = item['score']
             if score_threshold is not None and score < score_threshold:
                 continue

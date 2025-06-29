@@ -39,7 +39,7 @@ async def create_novel_artifact_example(embedding_flag: bool = False, chunker_fl
     """
     ensure_output_folder(SAVE_CHAPTERS_BASE_FOLDER)
     # Create a workspace
-    ws = WorkSpace(workspace_id="novel_example_workspace_v3", name="Novel Example Workspace", clear_existing=True)
+    ws = WorkSpace(workspace_id="novel_example_workspace_v4", name="Novel Example Workspace", clear_existing=True)
     # Create the novel artifact and save chapters
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",
@@ -117,7 +117,8 @@ async def hybrid_search_example(ws: WorkSpace) -> None:
     results = await ws.retrieve_artifact(
         HybridSearchQuery(
             query=search_query,
-            filter_types=[ArtifactType.NOVEL]
+            filter_types=[ArtifactType.NOVEL],
+            threshold=0.7
         )
     )
     
@@ -173,6 +174,8 @@ async def chunk_example(ws: WorkSpace) -> None:
         logging.info(f"Content preview: {chunk.content[:100]}...")
 
 if __name__ == "__main__":
-    asyncio.run(create_novel_artifact_example(embedding_flag=False, chunker_flag=True))
+    asyncio.run(create_novel_artifact_example(embedding_flag=True, chunker_flag=False))
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())
+    # ws = WorkSpace(workspace_id="novel_example_workspace_v4", name="Novel Example Workspace", clear_existing=False)
+    # asyncio.run(hybrid_search_example(ws))

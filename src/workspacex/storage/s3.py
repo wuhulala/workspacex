@@ -127,3 +127,13 @@ class S3Repository(BaseRepository):
             return None
         with self.fs.open(self.index_path, "r") as f:
             return json.load(f)
+        
+    def get_subaritfact_content(self, artifact_id: str, parent_id: str) -> Optional[str]:
+        """
+        Retrieve the content of a sub-artifact by artifact ID and parent ID.
+        """
+        data_path = self._full_path(self._sub_data_path(artifact_id=parent_id, sub_id=artifact_id, ext="txt"))
+        if self.fs.exists(data_path):
+            with self.fs.open(data_path, "r") as f:
+                return f.read()
+        return None

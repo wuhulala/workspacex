@@ -3,6 +3,7 @@ import os
 import traceback
 import uuid
 import json
+import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
 
@@ -103,7 +104,40 @@ class WorkSpace(BaseModel):
         if clear_existing:
             self.vector_db.delete(self.workspace_id)
 
-    
+    @classmethod
+    def from_s3_storages(cls, workspace_id: Optional[str] = None,
+                         name: Optional[str] = None,
+                         storage_path: Optional[str] = None,
+                         use_ssl=False
+                         ):
+        from workspacex.storage.s3 import S3Repository
+
+        # MinIO connection config
+        s3_kwargs = {
+            'key': os.getenv('MINIO_ACCESS_KEY'),
+            'secret': os.getenv('MINIO_SECRET_KEY'),
+            'client_kwargs': {
+                'endpoint_url': os.getenv('MINIO_ENDPOINT_URL')
+            },
+            'use_ssl': False
+        }
+        bucket = os.getenv('MINIO_BUCKET')
+
+        # Ensure bucket exists (create if not)
+        import s3fs
+        fs = s3fs.S3FileSystem(**s3_kwargs)
+        if not fs.exists(bucket):
+            fs.mkdir(bucket)
+
+        # Create S3Repository
+        repo = S3Repository(storage_path=storage_path,
+                            bucket=bucket,
+                            s3_kwargs=s3_kwargs)
+
+        # Create a workspace using S3Repository
+        return cls(workspace_id=workspace_id,
+                   name=name,
+                   repository=repo)
 
     @classmethod
     def from_local_storages(cls, workspace_id: Optional[str] = None,
@@ -226,7 +260,7 @@ class WorkSpace(BaseModel):
         # Add to workspace
         self.artifacts.append(artifact)
         # Store in repository
-        self._store_artifact(artifact)
+        await self._store_artifact(artifact)
 
         # Update workspace time
         self.updated_at = datetime.now().isoformat()
@@ -258,7 +292,7 @@ class WorkSpace(BaseModel):
             artifact.update_content(content, description)
 
             # Update storage
-            self._store_artifact(artifact)
+            await self._store_artifact(artifact)
 
             # Update workspace time
             self.updated_at = datetime.now().isoformat()
@@ -284,7 +318,7 @@ class WorkSpace(BaseModel):
                 # Mark as archived
                 artifact.archive()
                 # Store the archived state
-                self._store_artifact(artifact)
+                await self._store_artifact(artifact)
                 # Remove from list
                 self.artifacts.pop(i)
 
@@ -299,19 +333,45 @@ class WorkSpace(BaseModel):
                 return True
         return False
     
-    def _store_artifact(self, artifact: Artifact) -> None:
+    async def _store_artifact(self, artifact: Artifact) -> None:
         """Store artifact in repository"""
 
         self.repository.store_artifact(artifact=artifact)
         logging.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
 
         if artifact.embedding:
-            self._store_artifact_embedding(artifact)
+            # Create semaphore to limit concurrent operations (default: 10)
+            max_concurrent = getattr(self.workspace_config, 'max_concurrent_embeddings', 10)
+            semaphore = asyncio.Semaphore(max_concurrent)
+            
+            # Process main artifact and subartifacts in parallel for maximum concurrency 🚀
+            tasks = [self._store_artifact_embedding_with_semaphore(artifact, semaphore)]
+            
             if artifact.sublist and len(artifact.sublist) > 0:
-                for subartifact in artifact.sublist:
-                    self._store_artifact_embedding(subartifact)
+                # Add subartifacts to parallel processing
+                sub_tasks = [self._store_artifact_embedding_with_semaphore(subartifact, semaphore) 
+                           for subartifact in artifact.sublist]
+                tasks.extend(sub_tasks)
+                logging.info(f"🚀 Processing {len(tasks)} artifacts in parallel (1 main + {len(sub_tasks)} subartifacts) with max {max_concurrent} concurrent operations")
+            
+            # Execute all embedding tasks in parallel with error handling
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Log any errors that occurred during parallel processing
+            errors = [r for r in results if isinstance(r, Exception)]
+            if errors:
+                logging.error(f"❌ {len(errors)} errors occurred during parallel embedding processing:")
+                for error in errors:
+                    logging.error(f"   - {type(error).__name__}: {error}")
+            else:
+                logging.info(f"✅ All {len(tasks)} artifacts processed successfully in parallel")
 
-    def _store_artifact_embedding(self, artifact: Artifact) -> None:
+    async def _store_artifact_embedding_with_semaphore(self, artifact: Artifact, semaphore: asyncio.Semaphore) -> None:
+        """Store artifact embedding with concurrency control"""
+        async with semaphore:
+            return await self._store_artifact_embedding(artifact)
+
+    async def _store_artifact_embedding(self, artifact: Artifact) -> None:
         """Store artifact embedding"""
         # if embedding is not enabled, skip
         if not artifact.embedding or not artifact.get_embedding_text():
@@ -320,25 +380,37 @@ class WorkSpace(BaseModel):
         
         # if chunking is enabled, chunk the artifact first
         if self.workspace_config.chunk_config.enabled:
-            self._chunk_artifact(artifact)
+            await self._chunk_artifact(artifact)
             return
         
-        # else, embed the artifact directly
-        embedding_result = self.embedder.embed_artifact(artifact)
-        self.vector_db.insert(self.workspace_id, [embedding_result])
-        logging.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
-                
-    def _chunk_artifact(self, artifact: Artifact) -> None:
+        # else, embed the artifact directly - use asyncio.to_thread for CPU-intensive operations
+        try:
+            # Run embedding in thread pool to avoid blocking
+            embedding_result = await asyncio.to_thread(self.embedder.embed_artifact, artifact)
+            await asyncio.to_thread(self.vector_db.insert, self.workspace_id, [embedding_result])
+            logging.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+        except Exception as e:
+            logging.error(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
+            raise
+
+    async def _chunk_artifact(self, artifact: Artifact) -> None:
         """Chunk artifact"""
         if self.chunker:
-            chunks = self.chunker.chunk(artifact)
-            logging.info(f"📦[CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
-            if chunks:
-                embedding_results = self.embedder.embed_artifacts(chunks)
-                self.vector_db.insert(self.workspace_id, embedding_results)
-                logging.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
-            else:
-                logging.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
+            try:
+                # Run chunking in thread pool to avoid blocking
+                chunks = await asyncio.to_thread(self.chunker.chunk, artifact)
+                logging.info(f"📦[CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
+                
+                if chunks:
+                    # Run embedding in thread pool
+                    embedding_results = await asyncio.to_thread(self.embedder.embed_artifacts, chunks)
+                    await asyncio.to_thread(self.vector_db.insert, self.workspace_id, embedding_results)
+                    logging.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+                else:
+                    logging.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
+            except Exception as e:
+                logging.error(f"📦[CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
+                raise
 
     #########################################################
     # Artifact Retrieval
@@ -375,6 +447,7 @@ class WorkSpace(BaseModel):
                     return None
                 for sub_artifact in parent_artifact.sublist:
                     if sub_artifact.artifact_id == artifact_id:
+                        sub_artifact.content = self.repository.get_subaritfact_content(artifact_id, parent_id)
                         return sub_artifact
                 return None
 
@@ -383,7 +456,7 @@ class WorkSpace(BaseModel):
                 return artifact
         return None
     
-    def get_file_content_by_artifact_id(self, artifact_id: str) -> str:
+    def get_file_content_by_artifact_id(self, artifact_id: str, parent_id: str = None) -> str:
         """
         Get concatenated content of all artifacts with the same filename.
         
@@ -393,21 +466,7 @@ class WorkSpace(BaseModel):
         Returns:
             Raw unescaped concatenated content of all matching artifacts
         """
-        filename = artifact_id
-        for artifact in self.artifacts:
-            if artifact.artifact_id == artifact_id:
-                filename = artifact.metadata.get('filename')
-                break
-
-        result = ""
-        for artifact in self.artifacts:
-            if artifact.metadata.get('filename') == filename:
-                if artifact.content:
-                    result = result + artifact.content
-        decoded_string = result.encode('utf-8').decode('unicode_escape')
-        print(result)
-
-        return decoded_string
+        pass
     
     #########################################################
     # Hybrid Search

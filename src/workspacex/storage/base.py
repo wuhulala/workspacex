@@ -53,7 +53,17 @@ class BaseRepository(ABC):
         """
         pass
 
-   
+    @abstractmethod
+    def get_subaritfact_content(self, artifact_id: str, parent_id: str) -> Optional[str]:
+        """
+        Retrieve the content of a sub-artifact by artifact ID and parent ID.
+        Args:
+            artifact_id: The ID of the artifact
+            parent_id: The ID of the parent artifact
+        Returns:
+            The content of the sub-artifact as a string, or None if not found
+        """
+        pass
 
     def _artifact_dir(self, artifact_id: str) -> str:
         """

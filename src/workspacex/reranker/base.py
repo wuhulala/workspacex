@@ -6,11 +6,11 @@ from pydantic import BaseModel, Field
 from workspacex.artifact import Artifact
 
 class RerankConfig(BaseModel):
-    model_name: str = Field(..., description="Model name")
-    api_key: str = Field(..., description="API key")
     base_url: str = Field(..., description="Base URL")
-    score_threshold: Optional[float] = Field(default=None, description="Score threshold")
-    top_n: Optional[int] = Field(default=None, description="Top n")
+    api_key: Optional[str] = Field(default=None, description="API key")
+    model_name: Optional[str] = Field(default=None, description="Model name")
+    score_threshold: Optional[float] = Field(default=0.5, description="Score threshold")
+    top_n: Optional[int] = Field(default=10, description="Top n")
 
 class RerankResult(BaseModel):
     artifact: Artifact = Field(..., description="Artifact")

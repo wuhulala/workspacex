@@ -150,6 +150,10 @@ class Qwen3RerankerRunner(BaseRerankRunner):
         Raises:
             ImportError: If required dependencies are not installed.
         """
+        # Handle empty documents list
+        if not documents:
+            return []
+        
         # Format inputs
         pairs = [
             self.format_instruction(query, doc.get_reranked_text())

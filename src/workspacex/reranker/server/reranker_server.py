@@ -23,10 +23,6 @@ async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
     logger.info(f"Request: {request.method} {request.url}")
 
-    if request.method == "POST":
-        body = await request.json()
-        logger.info(f"Request body: {body}")
-
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
@@ -112,6 +108,13 @@ async def rerank(request: RerankerRequest) -> RerankerResponse:
         RerankerResponse: The reranked results with scores
     """
     try:
+        # Validate that documents list is not empty
+        if not request.documents:
+            raise HTTPException(
+                status_code=400,
+                detail="Documents list cannot be empty. Please provide at least one document to rerank."
+            )
+        
         # Convert documents to Artifacts
         artifacts = [
             Artifact(artifact_type=ArtifactType.TEXT,
@@ -139,6 +142,8 @@ async def rerank(request: RerankerRequest) -> RerankerResponse:
         return RerankerResponse(docs=response_results,
                                 model=runner.config.model_name)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during reranking: {e}")
         raise HTTPException(status_code=500,
@@ -155,6 +160,13 @@ async def rerank(request: RerankerRequest) -> dict:
         RerankerResponse: The reranked results with scores
     """
     try:
+        # Validate that documents list is not empty
+        if not request.documents:
+            raise HTTPException(
+                status_code=400,
+                detail="Documents list cannot be empty. Please provide at least one document to rerank."
+            )
+        
         # Convert documents to Artifacts
         artifacts = [
             Artifact(artifact_type=ArtifactType.TEXT,
@@ -181,6 +193,8 @@ async def rerank(request: RerankerRequest) -> dict:
 
         return {"results": response_results, "model": runner.config.model_name}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during reranking: {e}")
         raise HTTPException(status_code=500,
