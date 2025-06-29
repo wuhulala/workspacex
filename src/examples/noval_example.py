@@ -39,7 +39,7 @@ async def create_novel_artifact_example(embedding_flag: bool = False, chunker_fl
     """
     ensure_output_folder(SAVE_CHAPTERS_BASE_FOLDER)
     # Create a workspace
-    ws = WorkSpace(workspace_id="novel_example_workspace_v4", name="Novel Example Workspace", clear_existing=True)
+    ws = WorkSpace(workspace_id="novel_example_workspace_v5", name="Novel Example Workspace", clear_existing=True)
     # Create the novel artifact and save chapters
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",

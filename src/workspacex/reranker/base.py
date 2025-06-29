@@ -33,6 +33,18 @@ class BaseRerankRunner(ABC):
         :param score_threshold: score threshold
         :param top_n: top n
         :param user: unique user id if needed
-        :return:
+
+                results = reranker.run("你好", documents=[
+                    Artifact(artifact_type=ArtifactType.TEXT, content="你好"),
+                    Artifact(artifact_type=ArtifactType.TEXT, content="我很好"),
+                    Artifact(artifact_type=ArtifactType.TEXT, content="谢谢你"),
+                    Artifact(artifact_type=ArtifactType.TEXT, content="很高兴遇到你"),
+                ])
+                for result in results:
+                    print(f"{result.artifact.content}: {result.score}")
+                # 你好: 0.989096999168396
+                # 很高兴遇到你: 0.30921047925949097
+                # 谢谢你: 0.10078048706054688
+                # 我很好: 0.06917418539524078
         """
         raise NotImplementedError
