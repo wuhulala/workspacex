@@ -3,6 +3,31 @@ import os
 from workspacex import Artifact, ArtifactType
 from workspacex.chunk.base import ChunkConfig
 from workspacex.chunk.character import CharacterChunker
+from workspacex.chunk.sentence import SentenceChunker
+
+
+def test_character(chapter_artifact: Artifact):
+    chunker = CharacterChunker(config=ChunkConfig(chunk_size=1000, chunk_overlap=50))
+    chunk_list = chunker.chunk(chapter_artifact)
+    print(f"Chunk list: {len(chunk_list)}")
+    for i, chunk in enumerate(chunk_list):
+        print(f"Chunk {i + 1}: {chunk.content[:100]}")
+        print(f"Chunk metadata: {chunk.chunk_metadata}")
+        print("=" * 40)
+
+
+def test_sentence(chapter_artifact: Artifact):
+    os.environ['HF_ENDPOINT']='https://hf-mirror.com'
+    chunker = SentenceChunker(config=ChunkConfig(chunk_model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", tokens_per_chunk=128, chunk_overlap=50))
+
+    chunk_list = chunker.chunk(chapter_artifact)
+    print(f"Chunk list: {len(chunk_list)}")
+    for i, chunk in enumerate(chunk_list):
+        print(f"Chunk {i + 1}: {chunk.content[:1000]}")
+        print(f"Chunk metadata: {chunk.chunk_metadata}")
+        print("=" * 40)
+
+
 
 if __name__ == '__main__':
 
@@ -14,16 +39,12 @@ if __name__ == '__main__':
         content = f.read()
 
 
-    chapter_artifact = Artifact(
+    artifact = Artifact(
         artifact_id=str(uuid.uuid4()),
         artifact_type=ArtifactType.TEXT,
         content=content,
         parent_id=str(uuid.uuid4())
     )
-    chunker = CharacterChunker(config=ChunkConfig(chunk_size=1000, chunk_overlap=50))
-    chunk_list =  chunker.chunk(chapter_artifact)
-    print(f"Chunk list: {len(chunk_list)}")
-    for i, chunk in enumerate(chunk_list):
-        print(f"Chunk {i + 1}: {chunk.content[:100]}")
-        print(f"Chunk metadata: {chunk.chunk_metadata}")
-        print("=" * 40)
+
+    # test_character(artifact)
+    test_sentence(artifact)

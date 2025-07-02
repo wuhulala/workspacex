@@ -5,13 +5,23 @@ from langchain_text_splitters import CharacterTextSplitter
 
 from workspacex.artifact import Artifact, ArtifactType
 
-from .base import Chunk, ChunkMetadata, ChunkerBase
+from .base import Chunk, ChunkConfig, ChunkMetadata, ChunkerBase
 
 
 class CharacterChunker(ChunkerBase):
     """
     A chunker that splits text by characters.
     """
+
+    def __init__(self, config: ChunkConfig):
+        super().__init__(config=config)
+        self._text_splitter = CharacterTextSplitter(
+            separator="\n",
+            chunk_size=self.config.chunk_size,
+            chunk_overlap=self.config.chunk_overlap,
+            length_function=len,
+            is_separator_regex=False,
+        )
 
     def chunk(self, artifact: Artifact) -> List[Chunk]:
         """
@@ -23,29 +33,6 @@ class CharacterChunker(ChunkerBase):
         Returns:
             A list of `Chunk` objects.
         """
-        text_splitter = CharacterTextSplitter(
-            separator="\n",
-            chunk_size=self.config.chunk_size,
-            chunk_overlap=self.config.chunk_overlap,
-            length_function=len,
-            is_separator_regex=False,
-        )
+        texts = self._text_splitter.split_text(artifact.content)
 
-        texts = text_splitter.split_text(artifact.content)
-
-        chunks: List[Chunk] = []
-        for i, text in enumerate(texts):
-            chunk = Chunk(
-                content=text,
-                chunk_metadata=ChunkMetadata(
-                    chunk_index=i,
-                    chunk_size=len(text),
-                    chunk_overlap=self.config.chunk_overlap,
-                    artifact_id=artifact.artifact_id,
-                    artifact_type=artifact.artifact_type.value,
-                    parent_artifact_id=artifact.parent_id,
-                )
-            )
-            chunks.append(chunk)
-
-        return chunks 
+        return self._create_chunks(texts, artifact)
