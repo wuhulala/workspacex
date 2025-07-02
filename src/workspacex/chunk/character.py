@@ -24,7 +24,7 @@ class CharacterChunker(ChunkerBase):
             A list of `Chunk` objects.
         """
         text_splitter = CharacterTextSplitter(
-            separator="\\n",
+            separator="\n",
             chunk_size=self.config.chunk_size,
             chunk_overlap=self.config.chunk_overlap,
             length_function=len,
@@ -41,7 +41,9 @@ class CharacterChunker(ChunkerBase):
                     chunk_index=i,
                     chunk_size=len(text),
                     chunk_overlap=self.config.chunk_overlap,
-                    origin_artifact_id=artifact.artifact_id,
+                    artifact_id=artifact.artifact_id,
+                    artifact_type=artifact.artifact_type.value,
+                    parent_artifact_id=artifact.parent_id,
                 )
             )
             chunks.append(chunk)

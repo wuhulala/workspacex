@@ -14,7 +14,9 @@ class ChunkMetadata(BaseModel):
     chunk_index: int = Field(default=0, description="Chunk index")
     chunk_size: int = Field(default=0, description="Chunk size")
     chunk_overlap: int = Field(default=0, description="Chunk overlap")
-    origin_artifact_id: str = Field(default="", description="Origin artifact ID")
+    artifact_id: str = Field(default="", description="Origin artifact ID")
+    artifact_type: str = Field(default="", description="Origin artifact type")
+    parent_artifact_id: str = Field(default=None, description="Parent artifact ID")
 
 class Chunk(Artifact):
     chunk_metadata: ChunkMetadata = Field(default=ChunkMetadata(), description="Chunk metadata")
@@ -26,6 +28,7 @@ class Chunk(Artifact):
             content=content,
             metadata=chunk_metadata.model_dump()
         )
+        self.chunk_metadata = chunk_metadata
 
 class Chunker(ABC):
     """Chunk service interface"""
