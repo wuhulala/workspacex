@@ -1,11 +1,9 @@
-import uuid
 from typing import List
 
 from langchain_text_splitters import CharacterTextSplitter
 
-from workspacex.artifact import Artifact, ArtifactType
-
-from .base import Chunk, ChunkConfig, ChunkMetadata, ChunkerBase
+from workspacex.artifact import Artifact
+from .base import Chunk, ChunkConfig, ChunkerBase
 
 
 class CharacterChunker(ChunkerBase):

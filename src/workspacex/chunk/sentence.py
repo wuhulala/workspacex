@@ -1,8 +1,7 @@
-from typing import List
-
-from workspacex.chunk.base import Chunk, ChunkConfig, ChunkMetadata, ChunkerBase
-from workspacex.artifact import Artifact
 from langchain_text_splitters import SentenceTransformersTokenTextSplitter
+
+from workspacex.artifact import Artifact
+from workspacex.chunk.base import Chunk, ChunkConfig, ChunkerBase
 
 
 class SentenceChunker(ChunkerBase):

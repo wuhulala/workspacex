@@ -27,6 +27,19 @@ class ArtifactType(Enum):
     CHUNK = "CHUNK"
 
 
+class ChunkMetadata(BaseModel):
+    chunk_index: int = Field(default=0, description="Chunk index")
+    chunk_size: int = Field(default=0, description="Chunk size")
+    chunk_overlap: int = Field(default=0, description="Chunk overlap")
+    artifact_id: str = Field(default="", description="Origin artifact ID")
+    artifact_type: str = Field(default="", description="Origin artifact type")
+    parent_artifact_id: str = Field(default=None, description="Parent artifact ID")
+
+class Chunk(BaseModel):
+    chunk_id: str = Field(default=str(uuid.uuid4()), description="Chunk ID")
+    chunk_metadata: ChunkMetadata = Field(default=ChunkMetadata(), description="Chunk metadata")
+    content: str = Field(default="", description="Chunk content")
+
 
 class ArtifactStatus(Enum):
     """Artifact status"""
@@ -56,6 +69,7 @@ class Artifact(BaseModel):
     create_file: bool = Field(default=False, description="Flag to indicate if a file should be created")
     embedding: bool = Field(default=False, description="Flag to indicate if an embedding should be saved")
     sublist: List['Artifact'] = Field(default_factory=list, description="List of sub-artifacts (children)")
+    chunk_list: List[Chunk] = Field(default_factory=list, description="List of chunks")
 
     # Use model_validator for initialization logic
     @model_validator(mode='after')
@@ -201,6 +215,10 @@ class Artifact(BaseModel):
         if not self.content:
             return None
         return str(self.content)
+
+    def get_chunk_list(self) -> list[Chunk]:
+        return self.chunk_list
+
 
 class HybridSearchQuery(BaseModel):
     query: str = Field(..., description="Query string")
