@@ -36,6 +36,7 @@ class ChunkerBase(Chunker, BaseModel):
         chunks: List[Chunk] = []
         for i, text in enumerate(texts):
             chunk = Chunk(
+                chunk_id=f"{artifact.artifact_id}_chunk_{i}",
                 content=text,
                 chunk_metadata=ChunkMetadata(
                     chunk_index=i,

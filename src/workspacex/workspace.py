@@ -501,6 +501,7 @@ class WorkSpace(BaseModel):
         
         if not search_query.threshold:
             search_query.threshold = self.workspace_config.hybrid_search_config.threshold
+        logging.debug(f"🔍 retrieve_artifact final search_query: {search_query}")
 
         # 1. Embed query
         if self.workspace_config.hybrid_search_config.enabled:
@@ -516,14 +517,21 @@ class WorkSpace(BaseModel):
                 logging.warning("🔍 retrieve_artifact search_results.docs is None")
                 return None
             
+            existing_artifact_ids = []
+            
             for doc in search_results.docs:
                 if not doc.metadata:
                     logging.warning("🔍 retrieve_artifact doc.metadata is None")
                     continue
+                if doc.metadata.artifact_id in existing_artifact_ids:
+                    logging.debug(f"🔍 retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
+                    continue
                 artifact = self.get_artifact(doc.metadata.artifact_id, parent_id = doc.metadata.parent_id)
+                existing_artifact_ids.append(doc.metadata.artifact_id)
                 if not artifact:
                     logging.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
                     continue
+                logging.debug(f"🔍 retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
                 results.append(HybridSearchResult(artifact=artifact, score=doc.score))
         
         logging.info(f"🔍 retrieve_artifact results size: {len(results)}")

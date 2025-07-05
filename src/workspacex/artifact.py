@@ -36,7 +36,7 @@ class ChunkMetadata(BaseModel):
     parent_artifact_id: str = Field(default=None, description="Parent artifact ID")
 
 class Chunk(BaseModel):
-    chunk_id: str = Field(default=str(uuid.uuid4()), description="Chunk ID")
+    chunk_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Chunk ID")
     chunk_metadata: ChunkMetadata = Field(default=ChunkMetadata(), description="Chunk metadata")
     content: str = Field(default="", description="Chunk content")
 

@@ -21,7 +21,7 @@ noval.txt 内容如下：
 """
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 def ensure_output_folder(folder_path: str) -> None:
     """
@@ -111,7 +111,7 @@ async def hybrid_search_example(ws: WorkSpace) -> None:
         ws: WorkSpace instance to perform search on
     """
     # Using a meaningful search query that should match content
-    search_query = "青铜巨棺"  # This should match content about ancient times in chapter 2
+    search_query = "国际空间站"  # This should match content about ancient times in chapter 2
     logging.info(f"Performing hybrid search with query: '{search_query}'")
     
     results = await ws.retrieve_artifact(
@@ -174,7 +174,7 @@ async def chunk_example(ws: WorkSpace) -> None:
         logging.info(f"Content preview: {chunk.content[:100]}...")
 
 if __name__ == "__main__":
-    # asyncio.run(create_novel_artifact_example(embedding_flag=True, chunker_flag=False))
+    asyncio.run(create_novel_artifact_example(embedding_flag=True, chunker_flag=False))
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())
     ws = WorkSpace(workspace_id="novel_example_workspace_v7", name="Novel Example Workspace", clear_existing=False)
