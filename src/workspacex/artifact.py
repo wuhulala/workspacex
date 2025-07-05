@@ -234,6 +234,9 @@ class Artifact(BaseModel):
     def get_chunk_list(self) -> list[Chunk]:
         return self.chunk_list
 
+    @property
+    def support_chunking(self):
+        return True
 
 class HybridSearchQuery(BaseModel):
     query: str = Field(..., description="Query string")

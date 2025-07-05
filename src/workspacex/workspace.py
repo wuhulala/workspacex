@@ -380,7 +380,7 @@ class WorkSpace(BaseModel):
             return
         
         # if chunking is enabled, chunk the artifact first
-        if self.workspace_config.chunk_config.enabled:
+        if self.workspace_config.chunk_config.enabled and artifact.support_chunking:
             await self._chunk_artifact(artifact)
             return
         
