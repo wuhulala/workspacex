@@ -15,13 +15,14 @@ WORKSPACEX_DATA_DIR = os.environ.get("WORKSPACEX_DATA_DIR", f"{DATA_DIR}/workspa
 ####################################
 WORKSPACEX_ENABLE_CHUNKING = os.environ.get("WORKSPACEX_ENABLE_CHUNKING", "False").lower() == "true"
 WORKSPACEX_CHUNK_TEXT_SPLITTER = os.environ.get("WORKSPACEX_CHUNK_TEXT_SPLITTER", "character")
-WORKSPACEX_CHUNK_SIZE = os.environ.get("WORKSPACEX_CHUNK_SIZE", "1000")
-WORKSPACEX_CHUNK_OVERLAP = os.environ.get("WORKSPACEX_CHUNK_OVERLAP", "100")
+WORKSPACEX_CHUNK_SIZE = os.environ.get("WORKSPACEX_CHUNK_SIZE", "128")
+WORKSPACEX_CHUNK_OVERLAP = os.environ.get("WORKSPACEX_CHUNK_OVERLAP", "20")
 
 
 ####################################
 # Config for Embedding
 ####################################
+WORKSPACEX_ENABLE_EMBEDDING = os.environ.get("WORKSPACEX_ENABLE_EMBEDDING", "False") == "true"
 WORKSPACEX_EMBEDDING_PROVIDER = os.environ.get("WORKSPACEX_EMBEDDING_PROVIDER", "openai")
 WORKSPACEX_EMBEDDING_MODEL = os.environ.get("WORKSPACEX_EMBEDDING_MODEL", "nomic-embed-text")
 WORKSPACEX_EMBEDDING_API_KEY = os.environ.get("WORKSPACEX_EMBEDDING_API_KEY", "")

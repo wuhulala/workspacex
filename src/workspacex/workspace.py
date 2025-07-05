@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from workspacex.artifact import ArtifactType, Artifact, HybridSearchResult, HybridSearchQuery
+from workspacex.artifact import ArtifactType, Artifact, Chunk, HybridSearchResult, HybridSearchQuery
 from workspacex.base import WorkspaceConfig
 from workspacex.chunk.base import ChunkerFactory
 from workspacex.embedding.base import EmbeddingFactory, Embeddings
@@ -339,7 +339,8 @@ class WorkSpace(BaseModel):
         self.repository.store_artifact(artifact=artifact)
         logging.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
 
-        if artifact.embedding:
+
+        if self.workspace_config.embedding_config.enabled:
             # Create semaphore to limit concurrent operations (default: 10)
             max_concurrent = getattr(self.workspace_config, 'max_concurrent_embeddings', 10)
             semaphore = asyncio.Semaphore(max_concurrent)
@@ -397,13 +398,12 @@ class WorkSpace(BaseModel):
         """Chunk artifact"""
         if self.chunker:
             try:
-                # Run chunking in thread pool to avoid blocking
-                chunks = await asyncio.to_thread(self.chunker.chunk, artifact)
+                chunks = await self.chunker.chunk(artifact)
                 logging.info(f"📦[CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
                 
                 if chunks:
-                    # Run embedding in thread pool
-                    embedding_results = await asyncio.to_thread(self.embedder.embed_artifacts, chunks)
+                    await self.save_artifact_chunks(artifact, chunks)
+                    embedding_results = await self.embedder.async_embed_chunks(chunks)
                     await asyncio.to_thread(self.vector_db.insert, self.workspace_id, embedding_results)
                     logging.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
                 else:
@@ -411,6 +411,10 @@ class WorkSpace(BaseModel):
             except Exception as e:
                 logging.error(f"📦[CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
                 raise
+    
+    async def save_artifact_chunks(self, artifact: Artifact, chunks: List[Chunk]) -> None:
+        """Save artifact chunks"""
+        self.repository.store_artifact_chunks(artifact, chunks)
 
     #########################################################
     # Artifact Retrieval

@@ -21,7 +21,7 @@ class CharacterChunker(ChunkerBase):
             is_separator_regex=False,
         )
 
-    def chunk(self, artifact: Artifact) -> List[Chunk]:
+    async def chunk(self, artifact: Artifact) -> List[Chunk]:
         """
         Chunks the given content by characters.
 

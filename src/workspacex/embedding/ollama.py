@@ -1,13 +1,11 @@
-import asyncio
 import logging
-import time
-from workspacex.utils.timeit import timeit
 from typing import List
-import requests
+
 import aiohttp
-from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult, EmbeddingsMetadata
-from workspacex.artifact import Artifact
-from workspacex.embedding.embeddings_base import EmbeddingsBase
+import requests
+
+from workspacex.embedding.base import EmbeddingsConfig, EmbeddingsBase
+from workspacex.utils.timeit import timeit
 
 
 class OllamaEmbeddings(EmbeddingsBase):

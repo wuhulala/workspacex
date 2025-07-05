@@ -5,6 +5,8 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel
 
+from workspacex.artifact import Chunk
+
 
 class BaseRepository(ABC):
     """
@@ -43,6 +45,22 @@ class BaseRepository(ABC):
         pass
 
     @abstractmethod
+    def store_artifact_chunks(self, artifact: Any, chunks: list[Chunk]):
+        """
+        store chunks in the repository, each chunk will be stored in a separate file
+
+        file name is the chunk.chunk_file_name
+        file directory is the _chunk_dir(artifact.artifact_id)
+        file content is the chunk.content
+        Args:
+            artifact: Artifact object
+            chunks: list of chunks
+        Returns:
+            None
+        """
+        pass
+
+    @abstractmethod
     def retrieve_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve the artifact data by artifact ID.
@@ -75,7 +93,7 @@ class BaseRepository(ABC):
         """
         return f"artifacts/{artifact_id}"
 
-    def _sub_dir(self, artifact_id: str) -> str:
+    def _sub_dir(self, artifact_id: str, sub_id: str) -> str:
         """
         Get the directory path for a sub-artifact.
         Args:
@@ -83,7 +101,17 @@ class BaseRepository(ABC):
         Returns:
             Path to the sub-artifact directory (as string)
         """
-        return f"{self._artifact_dir(artifact_id)}/sublist"
+        return f"{self._artifact_dir(artifact_id)}/sublist/{sub_id}"
+    
+    def _chunk_dir(self, artifact_id: str) -> str:
+        """
+        Get the directory path for a chunk.
+        Args:
+            artifact_id: Artifact ID
+        Returns:
+            Path to the chunk directory (as string)
+        """
+        return f"{self._artifact_dir(artifact_id)}/chunks" 
 
     def _sub_data_path(self,
                        artifact_id: str,

@@ -91,7 +91,7 @@ class S3Repository(BaseRepository):
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
             sub_type = sub.artifact_type
-            sub_dir = self._full_path(self._sub_dir(artifact_id))
+            sub_dir = self._full_path(self._sub_dir(artifact_id, sub_id))
             if not self.fs.exists(sub_dir):
                 self.fs.mkdirs(sub_dir, exist_ok=True)
             sub_meta = sub.to_dict()
@@ -137,3 +137,27 @@ class S3Repository(BaseRepository):
             with self.fs.open(data_path, "r") as f:
                 return f.read()
         return None
+
+    def store_artifact_chunks(self, artifact: "Artifact", chunks: list["Chunk"]) -> None:
+        """
+        将chunks保存到S3，每个chunk为单独文件。
+
+        - 如果artifact有parent_id，则目录为artifacts/{parent_id}/sublist/{artifact_id}/chunks
+        - 否则目录为artifacts/{artifact_id}/chunks
+        文件名为chunk.chunk_file_name，内容为chunk.content。
+        Args:
+            artifact: Artifact对象
+            chunks: Chunk对象列表
+        Returns:
+            None
+        """
+        if artifact.parent_id:
+            chunk_dir = self._full_path(f"artifacts/{artifact.parent_id}/sublist/{artifact.artifact_id}/chunks")
+        else:
+            chunk_dir = self._full_path(f"artifacts/{artifact.artifact_id}/chunks")
+        if not self.fs.exists(chunk_dir):
+            self.fs.mkdirs(chunk_dir, exist_ok=True)
+        for chunk in chunks:
+            file_path = f"{chunk_dir}/{chunk.chunk_file_name}"
+            with self.fs.open(file_path, "w") as f:
+                f.write(chunk.content)

@@ -9,7 +9,7 @@ from workspacex.artifact import Artifact, Chunk, ChunkMetadata
 
 class ChunkConfig(BaseModel):
     enabled: bool = Field(default=False, description=" ") 
-    text_splitter: str = Field(default="character", description="Text splitter")
+    provider: str = Field(default="character", description="Text splitter")
     chunk_size: int = Field(default=1000, description="Chunk size")
     chunk_overlap: int = Field(default=100, description="Chunk overlap")
     chunk_separator: str = Field(default="\n", description="Chunk separator")
@@ -29,7 +29,7 @@ class ChunkerBase(Chunker, BaseModel):
     
     """Chunker base class"""
 
-    def chunk(self, artifact: Artifact) -> list[Chunk]:
+    async def chunk(self, artifact: Artifact) -> list[Chunk]:
         pass
 
     def _create_chunks(self, texts: List[str], artifact: Artifact) -> List[Chunk]:
@@ -54,8 +54,11 @@ class ChunkerFactory:
 
     @staticmethod
     def get_chunker(config: ChunkConfig) -> Chunker:
-        if config.text_splitter == "character":
+        if config.provider == "character":
             from .character import CharacterChunker
             return CharacterChunker(config)
+        elif config.provider == "sentence_token":
+            from .sentence import SentenceTokenChunker
+            return SentenceTokenChunker(config)
         else:
-            raise ValueError(f"Unsupported text splitter: {config.text_splitter}")
+            raise ValueError(f"Unsupported text splitter: {config.provider}")

@@ -4,7 +4,7 @@ from workspacex.artifact import Artifact
 from workspacex.chunk.base import Chunk, ChunkConfig, ChunkerBase
 
 
-class SentenceChunker(ChunkerBase):
+class SentenceTokenChunker(ChunkerBase):
     
     def __init__(self, config: ChunkConfig):
         super().__init__(config=config)
@@ -17,6 +17,6 @@ class SentenceChunker(ChunkerBase):
     """
     A chunker that splits text by sentences.
     """
-    def chunk(self, artifact: Artifact) -> list[Chunk]:
+    async def chunk(self, artifact: Artifact) -> list[Chunk]:
         texts = self._text_splitter.split_text(artifact.content)
         return self._create_chunks(texts, artifact)

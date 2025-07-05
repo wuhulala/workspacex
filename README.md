@@ -155,3 +155,9 @@ The server will start on http://localhost:8000. Interactive API docs are availab
 ---
 
 Let me know if you want to add more details, such as advanced usage, API docs, or contribution guidelines!
+
+## Embeddings 能力
+
+- 支持对 `Artifact` 的 `chunk_list` 进行批量嵌入，新增了如下接口：
+  - `embed_chunks(artifact: Artifact) -> list[EmbeddingsResult]`：对 artifact 的 chunk_list 进行同步嵌入。
+  - `async_embed_chunks(artifact: Artifact) -> list[EmbeddingsResult]`：对 artifact 的 chunk_list 进行异步嵌入。

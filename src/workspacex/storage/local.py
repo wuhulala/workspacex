@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Literal
 
 from pydantic import BaseModel
 
-from workspacex.artifact import Artifact, ArtifactType
+from workspacex.artifact import Artifact, ArtifactType, Chunk
 from .base import BaseRepository, CommonEncoder, EnumDecoder
 
 
@@ -77,17 +77,17 @@ class LocalPathRepository(BaseRepository):
         """
         return self._full_path(f"artifacts/{artifact_id}")
 
-    def _sub_dir(self, artifact_id: str) -> Path:
+    def _sub_dir(self, artifact_id: str, sub_id: str) -> Path:
         """
         Get the directory path for a sub-artifact.
         """
-        return self._full_path(f"artifacts/{artifact_id}/sublist")
+        return self._full_path(f"artifacts/{artifact_id}/sublist/{sub_id}")
 
     def _sub_data_path(self, artifact_id: str, sub_id: str, ext: str = "txt") -> Path:
         """
         Get the path for a sub-artifact's data file.
         """
-        return self._full_path(f"artifacts/{artifact_id}/sublist/{sub_id}.{ext}")
+        return self._full_path(f"artifacts/{artifact_id}/sublist/{sub_id}/origin.{ext}")
 
     def _artifact_index_path(self, artifact_id: str) -> Path:
         """
@@ -132,13 +132,15 @@ class LocalPathRepository(BaseRepository):
         artifact_id = artifact.artifact_id
         artifact_dir = self._artifact_dir(artifact_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
+
         sub_artifacts_meta = []
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
             sub_type = sub.artifact_type
-            sub_dir = self._sub_dir(artifact_id)
+            sub_dir = self._sub_dir(artifact_id, sub_id)
             sub_dir.mkdir(parents=True, exist_ok=True)
             sub_meta = sub.to_dict()
+            # TODO add ext
             if sub_type == ArtifactType.TEXT:
                 content = sub.content
                 data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
@@ -184,4 +186,27 @@ class LocalPathRepository(BaseRepository):
                 return None
         
         return None
+
+    def store_artifact_chunks(self, artifact: "Artifact", chunks: list["Chunk"]) -> None:
+        """
+        将chunks保存到本地文件系统，每个chunk为单独文件。
+
+        - 如果artifact有parent_id，则目录为artifacts/{parent_id}/sublist/{artifact_id}/chunks
+        - 否则目录为artifacts/{artifact_id}/chunks
+        文件名为chunk.chunk_file_name，内容为chunk.content。
+        Args:
+            artifact: Artifact对象
+            chunks: Chunk对象列表
+        Returns:
+            None
+        """
+        if artifact.parent_id:
+            chunk_dir = self._full_path(f"artifacts/{artifact.parent_id}/sublist/{artifact.artifact_id}/chunks")
+        else:
+            chunk_dir = self._full_path(f"artifacts/{artifact.artifact_id}/chunks")
+        chunk_dir.mkdir(parents=True, exist_ok=True)
+        for chunk in chunks:
+            file_path = chunk_dir / chunk.chunk_file_name
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(chunk.content)
         

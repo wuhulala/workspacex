@@ -40,6 +40,21 @@ class Chunk(BaseModel):
     chunk_metadata: ChunkMetadata = Field(default=ChunkMetadata(), description="Chunk metadata")
     content: str = Field(default="", description="Chunk content")
 
+    @property
+    def parent_artifact_id(self) -> str:
+        return self.chunk_metadata.parent_artifact_id
+    
+    @property
+    def artifact_id(self) -> str:
+        return self.chunk_metadata.artifact_id
+    
+    @property
+    def artifact_type(self) -> str:
+        return self.chunk_metadata.artifact_type
+    
+    @property
+    def chunk_file_name(self) -> str:
+        return f"{self.artifact_id}_chunk_{self.chunk_metadata.chunk_index}.txt"
 
 class ArtifactStatus(Enum):
     """Artifact status"""

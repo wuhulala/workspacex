@@ -1,12 +1,10 @@
-import asyncio
-import time
 import logging
 from typing import Any, List
-from workspacex.artifact import Artifact
-from workspacex.embedding.base import Embeddings, EmbeddingsConfig, EmbeddingsResult, EmbeddingsMetadata
-from workspacex.utils.timeit import timeit
+
 from openai import OpenAI
-from workspacex.embedding.embeddings_base import EmbeddingsBase
+
+from workspacex.embedding.base import EmbeddingsConfig, EmbeddingsBase
+from workspacex.utils.timeit import timeit
 
 
 class OpenAICompatibleEmbeddings(EmbeddingsBase):
