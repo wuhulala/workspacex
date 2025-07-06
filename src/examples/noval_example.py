@@ -21,8 +21,8 @@ noval.txt 内容如下：
 """
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
 from workspacex.utils.logger import logger
-import logging
-logging.basicConfig(level=logging.DEBUG)
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 def ensure_output_folder(folder_path: str) -> None:
     """

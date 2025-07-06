@@ -1,10 +1,13 @@
 # workspacex
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![DeepWiki](https://img.shields.io/badge/DeepWiki-Explore-blueviolet?logo=wikipedia&logoColor=white)](https://deepwiki.com/wuhulala/workspacex)
+
+
+
 **workspacex** is a Python library for managing AIGC (AI-Generated Content) artifacts. It provides a collaborative workspace environment for handling multiple artifacts with features like version control, update notifications, artifact management, and pluggable storage and embedding backends.
 
-![asd](arch_stylish.png)
----
-
+![workspace](./asserts/workspace.png){width=800px height=400px}
 ## Features
 
 - **Artifact Management**: Create, update, and manage different types of artifacts (text, code, novels, etc.)
@@ -15,6 +18,10 @@
 - **Vector Search**: Hybrid search combining semantic and keyword-based search
 - **Reranking**: Local reranking using Qwen3-Reranker models
 - **HTTP Service**: FastAPI-based reranking service
+
+## Process
+
+![img.png](./asserts/pipeline.png){width=400px height=800px}
 
 ---
 
@@ -141,26 +148,6 @@ RERANKER_RELOAD=False
 The server will start on http://localhost:8000. Interactive API docs are available at `/docs` and `/redoc`. It provides endpoints like `/rerank` and a Dify-compatible `/dify/rerank`.
 
 ---
-
-## Notes
-
-- All source code is under `src/`.
-- Make sure to activate the correct conda environment before using Poetry commands or running code.
-- If you see `ModuleNotFoundError: No module named 'workspacex'`, ensure your `PYTHONPATH` includes `src`.
-- Storage and embedding backends are pluggable and extensible.
-- For S3 support, install `s3fs` and configure credentials as needed.
-- For reranking, CUDA is recommended for better performance.
-- The reranker server supports both CPU and GPU inference.
-
----
-
-Let me know if you want to add more details, such as advanced usage, API docs, or contribution guidelines!
-
-## Embeddings 能力
-
-- 支持对 `Artifact` 的 `chunk_list` 进行批量嵌入，新增了如下接口：
-  - `embed_chunks(artifact: Artifact) -> list[EmbeddingsResult]`：对 artifact 的 chunk_list 进行同步嵌入。
-  - `async_embed_chunks(artifact: Artifact) -> list[EmbeddingsResult]`：对 artifact 的 chunk_list 进行异步嵌入。
 
 ## Changelog
 

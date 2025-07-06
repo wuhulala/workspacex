@@ -2,9 +2,12 @@ import logging
 
 import coloredlogs
 
-# Configure colored logging with custom format
+logger = logging.getLogger("workspacex")
+logger.setLevel(logging.DEBUG)
+
 coloredlogs.install(
-    level=logging.DEBUG,
+    level='DEBUG',
+    logger=logger,
     fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level_styles={
         'debug': {'color': 'cyan'},
@@ -19,6 +22,3 @@ coloredlogs.install(
         'levelname': {'color': 'white', 'bold': True}
     }
 )
-
-# Create a custom logger for this module
-logger = logging.getLogger("workspacex")
