@@ -5,10 +5,10 @@ from typing import List
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.embedding.base import EmbeddingsConfig
 from workspacex.embedding.ollama import OllamaEmbeddings
-import logging
+from workspacex.utils.logger import logger
 from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logger.info)
 
 async def main():
     load_dotenv()   

@@ -2,7 +2,7 @@ import time
 import traceback
 
 import chromadb
-import logging
+from workspacex.utils.logger import logger
 from chromadb import Settings
 from chromadb.utils.batch_utils import create_batches
 
@@ -103,7 +103,7 @@ class ChromaVectorDB(VectorDB):
             return None
         except Exception as e:
             traceback.print_exc()
-            logging.error(f"Error in search: {e}")
+            logger.error(f"Error in search: {e}")
             return None
 
     def query(
@@ -307,7 +307,7 @@ class ChromaVectorDB(VectorDB):
                     self.client.delete_collection(name=collection_name)
         except Exception as e:
             # If collection doesn't exist, that's fine - nothing to delete
-            logging.debug(
+            logger.debug(
                 f"Attempted to delete from non-existent collection {collection_name}. Ignoring."
             )
             pass

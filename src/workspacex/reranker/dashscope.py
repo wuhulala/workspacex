@@ -1,8 +1,7 @@
 from typing import List, Optional
 from workspacex.reranker.base import BaseRerankRunner, RerankConfig, RerankResult
 from workspacex.artifact import Artifact
-import logging
-
+from workspacex.utils.logger import logger
 from workspacex.utils.timeit import timeit
 
 try:
@@ -36,11 +35,11 @@ class AliyunRerankRunner(BaseRerankRunner):
         else:
             self.use_sdk = HAS_SDK
         if self.use_sdk:
-            logging.info("AliyunRerankRunner: Using SDK mode.")
+            logger.info("AliyunRerankRunner: Using SDK mode.")
         else:
-            logging.info("AliyunRerankRunner: Using HTTP mode.")
+            logger.info("AliyunRerankRunner: Using HTTP mode.")
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "AliyunRerankRunner.run took {elapsed_time:.3f} seconds")
     def run(
         self,

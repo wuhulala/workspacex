@@ -2,7 +2,7 @@ import os
 import sys
 import json
 from dotenv import load_dotenv
-from workspacex.artifact import ArtifactType, HybridSearchQuery
+from workspacex.artifact import ArtifactType, HybridSearchQuery, ChunkSearchQuery
 from workspacex.workspace import WorkSpace
 import asyncio
 
@@ -20,6 +20,7 @@ noval.txt 内容如下：
 
 """
 SAVE_CHAPTERS_BASE_FOLDER = os.path.join(os.path.dirname(__file__), 'novel_chapters')
+from workspacex.utils.logger import logger
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -44,20 +45,17 @@ async def create_novel_artifact_example(embedding_flag: bool = False, chunker_fl
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",
         artifact_type=ArtifactType.NOVEL,
-        novel_file_path=NOVEL_FILE_PATH,
-        embedding_flag=embedding_flag
+        novel_file_path=NOVEL_FILE_PATH
     )
     novel_artifact = artifacts[0]
-    logging.info(f"Novel artifact created: {novel_artifact.artifact_id}")
-    logging.info(f"Total chapters: {novel_artifact.chapter_num}")
+    logger.info(f"Novel artifact created: {novel_artifact.artifact_id}")
+    logger.info(f"Total chapters: {novel_artifact.chapter_num}")
     # Print first 3 chapter titles as a sample
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
-        logging.info(f"Chapter {i+1}: {subartifact.content[:100]}")
-    if chunker_flag:
-        await chunk_example(ws)
+        logger.info(f"Chapter {i+1}: {subartifact.content[:100]}")
 
     if embedding_flag:
-        logging.info("🔍 Hybrid search example")
+        logger.info("🔍 Hybrid search example")
         await hybrid_search_example(ws)
 
 
@@ -78,7 +76,7 @@ async def create_novel_artifact_s3_example() -> None:
         'use_ssl': False
     }
     bucket = 'test-bucket'
-    storage_path = 'novel-example-s3'
+    storage_path = 'novel-example-s3-v2'
     # Ensure bucket exists (create if not)
     import s3fs
     fs = s3fs.S3FileSystem(**s3_kwargs)
@@ -91,7 +89,7 @@ async def create_novel_artifact_s3_example() -> None:
     # Create a workspace using S3Repository
     ws = WorkSpace(workspace_id="novel_example_workspace_s3",
                    name="Novel Example Workspace S3",
-                   repository=repo)
+                   repository=repo, clear_existing=True)
     json.dump(ws.generate_tree_data(), open('tree_data.json', 'w'), indent=2)
     # Create the novel artifact and store in S3
     artifacts = await ws.create_artifact(artifact_id="novel_artifact_s3_v4",
@@ -99,10 +97,11 @@ async def create_novel_artifact_s3_example() -> None:
                                          novel_file_path=NOVEL_FILE_PATH)
     novel_artifact = artifacts[0]
     print(f"[S3] Novel artifact created: {novel_artifact.artifact_id}")
-    print(f"[S3] Total chapters: {novel_artifact.chater_num}")
+    # print(f"[S3] Total chapters: {novel_artifact.chater_num}")
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
         print(f"[S3] Chapter {i+1}: {subartifact.content[:100]}")
 
+    await hybrid_search_chunk_example(ws)
 async def hybrid_search_example(ws: WorkSpace) -> None:
     """
     Example: Hybrid search for a novel artifact.
@@ -112,7 +111,7 @@ async def hybrid_search_example(ws: WorkSpace) -> None:
     """
     # Using a meaningful search query that should match content
     search_query = "国际空间站"  # This should match content about ancient times in chapter 2
-    logging.info(f"Performing hybrid search with query: '{search_query}'")
+    logger.info(f"Performing hybrid search with query: '{search_query}'")
     
     results = await ws.retrieve_artifact(
         HybridSearchQuery(
@@ -123,59 +122,49 @@ async def hybrid_search_example(ws: WorkSpace) -> None:
     )
     
     if not results:
-        logging.info("No results found")
+        logger.info("No results found")
         return
         
-    logging.info(f"Found {len(results)} results:")
+    logger.info(f"Found {len(results)} results:")
     for i, result in enumerate(results, 1):
-        logging.info(f"\nResult #{i}:")
-        logging.info(f"Chapter ID: {result.artifact.artifact_id}")
-        logging.info(f"Similarity Score: {result.score:.4f}")
-        logging.info(f"Content Preview: {result.artifact.content[:200]}...")
+        logger.info(f"\nResult #{i}:")
+        logger.info(f"Chapter ID: {result.artifact.artifact_id}")
+        logger.info(f"Similarity Score: {result.score:.4f}")
+        logger.info(f"Content Preview: {result.artifact.content[:200]}...")
 
-async def chunk_example(ws: WorkSpace) -> None:
+async def hybrid_search_chunk_example(ws: WorkSpace) -> None:
     """
-    Example: Demonstrate text chunking functionality on novel artifacts.
-    
+    Example: Hybrid search for a novel artifact.
+
     Args:
-        ws: WorkSpace instance containing the artifacts to chunk
+        ws: WorkSpace instance to perform search on
     """
-    from workspacex.chunk.base import ChunkConfig
-    from workspacex.chunk.character import CharacterChunker
+    # Using a meaningful search query that should match content
+    search_query = "国际空间站"  # This should match content about ancient times in chapter 2
+    logger.info(f"Performing hybrid search with query: '{search_query}'")
 
-    # Get the first novel artifact
-    artifacts = ws.list_artifacts(filter_types=[ArtifactType.NOVEL])
-    if not artifacts:
-        logging.info("No novel artifacts found")
-        return
-
-    novel_artifact = artifacts[0]
-
-    # Create a chunker with custom configuration
-    chunker = CharacterChunker(
-        config=ChunkConfig(
-            chunk_size=100,  # Smaller chunks for demonstration
-            chunk_overlap=50
+    results = await ws.retrieve_chunk(
+        ChunkSearchQuery(
+            query=search_query,
+            threshold=0.7
         )
     )
-    
-    # Chunk the artifact
-    chunks = chunker.chunk(novel_artifact.sublist[0])
-    
-    # Display chunking results
-    logging.info(f"\n📚 Chunking Results for artifact {novel_artifact.sublist[0].artifact_id}:")
-    logging.info(f"Total chunks created: {len(chunks)}")
-    
-    # Show first 3 chunks as examples
-    for i, chunk in enumerate(chunks[:3], 1):
-        logging.info(f"\nChunk #{i}:")
-        logging.info(f"Size: {chunk.chunk_metadata.chunk_size} characters")
-        logging.info(f"Index: {chunk.chunk_metadata.chunk_index}")
-        logging.info(f"Content preview: {chunk.content[:100]}...")
+
+    if not results:
+        logger.info("No results found")
+        return
+
+    logger.info(f"Found {len(results)} results:")
+    for i, result in enumerate(results, 1):
+        logger.info(f"=== Result #{i} ===[{result.chunk.chunk_id}:{result.score:.4f}]===")
+        logger.info(f"Chunk Content: {result.chunk.content[:100]}...")
+        logger.info(f"Chunk Pre Chunks: {[chunk.chunk_id for chunk in result.pre_n_chunks]}")
+        logger.info(f"Chunk Next Chunks: {[chunk.chunk_id for chunk in result.next_n_chunks]}")
 
 if __name__ == "__main__":
-    asyncio.run(create_novel_artifact_example(embedding_flag=True, chunker_flag=False))
+    # asyncio.run(create_novel_artifact_example(embedding_flag=True, chunker_flag=False))
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())
     ws = WorkSpace(workspace_id="novel_example_workspace_v7", name="Novel Example Workspace", clear_existing=False)
-    asyncio.run(hybrid_search_example(ws))
+    # asyncio.run(hybrid_search_example(ws))
+    asyncio.run(hybrid_search_chunk_example(ws))

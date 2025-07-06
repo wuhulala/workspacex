@@ -1,5 +1,5 @@
 import asyncio
-import logging
+from workspacex.utils.logger import logger
 import os
 from workspacex.embedding.openai_compatible import OpenAICompatibleEmbeddings
 from workspacex.embedding.base import EmbeddingsConfig, EmbeddingsResult
@@ -7,7 +7,6 @@ from workspacex.artifact import Artifact, ArtifactType
 from dotenv import load_dotenv
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
 load_dotenv()
 # Example configuration (replace with your real API key and endpoint)
 config = EmbeddingsConfig(

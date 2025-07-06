@@ -36,7 +36,6 @@ class NovelArtifact(Artifact):
         self.chapter_num = len(artifacts)
         for sub_artifact in artifacts:
             sub_artifact.parent_id = self.artifact_id
-            sub_artifact.embedding = self.embedding
             sub_artifact.mark_complete()
             self.add_subartifact(sub_artifact)
         self.mark_complete()

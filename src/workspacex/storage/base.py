@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import json
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 from pydantic import BaseModel
 
@@ -43,6 +44,21 @@ class BaseRepository(ABC):
             None
         """
         pass
+
+    @abstractmethod
+    def get_chunk_window(self, artifact_id: str, parent_id: str, chunk_index: int, pre_n: int, next_n: int) -> Optional[Tuple[Optional[list[Chunk]], Optional[Chunk], Optional[list[Chunk]]]]:
+        """
+        Get a window of chunks by artifact ID, parent ID, chunk ID, pre n, next n
+        Args:
+            artifact_id: Artifact ID
+            parent_id: Parent ID
+            chunk_id: Chunk ID
+            pre_n: Pre n
+            next_n: Next n
+        Returns:
+            List of chunks
+        """
+        pass   
 
     @abstractmethod
     def store_artifact_chunks(self, artifact: Any, chunks: list[Chunk]):
@@ -103,15 +119,19 @@ class BaseRepository(ABC):
         """
         return f"{self._artifact_dir(artifact_id)}/sublist/{sub_id}"
     
-    def _chunk_dir(self, artifact_id: str) -> str:
+    def _chunk_dir(self, artifact_id: str, parent_id: str = None) -> str:
         """
         Get the directory path for a chunk.
         Args:
             artifact_id: Artifact ID
+            parent_id: Parent ID
         Returns:
             Path to the chunk directory (as string)
         """
-        return f"{self._artifact_dir(artifact_id)}/chunks" 
+        if parent_id:
+            return f"{self._artifact_dir(parent_id)}/sublist/{artifact_id}/chunks"
+        else:
+            return f"{self._artifact_dir(artifact_id)}/chunks"
 
     def _sub_data_path(self,
                        artifact_id: str,
@@ -126,7 +146,7 @@ class BaseRepository(ABC):
         Returns:
             Path to the sub-artifact data file (as string)
         """
-        return f"{self._sub_dir(artifact_id)}/{sub_id}.{ext}"
+        return f"{self._sub_dir(artifact_id, sub_id)}/{sub_id}.{ext}"
 
     def _artifact_index_path(self, artifact_id: str) -> str:
         """

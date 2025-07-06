@@ -1,4 +1,4 @@
-import logging
+from workspacex.utils.logger import logger
 from typing import List
 
 import aiohttp
@@ -20,7 +20,7 @@ class OllamaEmbeddings(EmbeddingsBase):
         """
         super().__init__(config)
     
-    @timeit(logging.info, "Ollama embedding query completed in {elapsed_time:.3f} seconds")
+    @timeit(logger.info, "Ollama embedding query completed in {elapsed_time:.3f} seconds")
     def embed_query(self, text: str) -> List[float]:
         """
         Embed a query string using Ollama HTTP API.
@@ -39,14 +39,14 @@ class OllamaEmbeddings(EmbeddingsBase):
             response.raise_for_status()
             data = response.json()
             # Ollama returns {"embedding": [...], ...}
-            logging.debug(f"Ollama embedding response: {data}")
+            logger.debug(f"Ollama embedding response: {data}")
             return self.resolve_embedding(data)
         except Exception as e:
             import traceback
             traceback.print_exc()
             raise RuntimeError(f"Ollama embedding API error: {e}")
 
-    @timeit(logging.info, "Ollama async embedding query completed in {elapsed_time:.3f} seconds")
+    @timeit(logger.info, "Ollama async embedding query completed in {elapsed_time:.3f} seconds")
     async def async_embed_query(self, text: str) -> List[float]:
         """
         Asynchronously embed a query string using Ollama HTTP API.

@@ -1,4 +1,4 @@
-import logging
+from workspacex.utils.logger import logger
 import os
 import traceback
 import uuid
@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from workspacex.artifact import ArtifactType, Artifact, Chunk, HybridSearchResult, HybridSearchQuery
+from workspacex.artifact import ArtifactType, Artifact, Chunk, ChunkSearchQuery, ChunkSearchResult, HybridSearchResult, HybridSearchQuery
 from workspacex.base import WorkspaceConfig
 from workspacex.chunk.base import ChunkerFactory
 from workspacex.embedding.base import EmbeddingFactory, Embeddings
@@ -179,8 +179,7 @@ class WorkSpace(BaseModel):
             artifact_id: Optional[str] = None,
             content: Optional[Any] = None,
             metadata: Optional[Dict[str, Any]] = None,
-            novel_file_path: Optional[str] = None,
-            embedding_flag: bool = False
+            novel_file_path: Optional[str] = None
     ) -> List[Artifact]:
         """
         Create a new artifact
@@ -218,16 +217,14 @@ class WorkSpace(BaseModel):
                 artifact_type=artifact_type,
                 novel_file_path=novel_file_path,
                 metadata=metadata,
-                artifact_id=artifact_id,
-                embedding=embedding_flag
+                artifact_id=artifact_id
             )
         else:
             artifact = Artifact(
                 artifact_id=artifact_id,
                 artifact_type=artifact_type,
                 content=content,
-                metadata=metadata,
-                embedding=embedding_flag
+                metadata=metadata
             )
         if artifact:
             await self.add_artifact(artifact)
@@ -254,7 +251,7 @@ class WorkSpace(BaseModel):
         """
         # Check if artifact ID already exists
         existing_artifact = self.get_artifact(artifact.artifact_id)
-        logging.info(f"🔍 add_artifact {artifact.artifact_id} {existing_artifact}")
+        logger.info(f"🔍 add_artifact {artifact.artifact_id} {existing_artifact}")
         if existing_artifact:
             raise ValueError(f"Artifact with ID {artifact.artifact_id} already exists")
         # Add to workspace
@@ -337,7 +334,7 @@ class WorkSpace(BaseModel):
         """Store artifact in repository"""
 
         self.repository.store_artifact(artifact=artifact)
-        logging.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
+        logger.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
 
 
         if self.workspace_config.embedding_config.enabled:
@@ -353,7 +350,7 @@ class WorkSpace(BaseModel):
                 sub_tasks = [self._store_artifact_embedding_with_semaphore(subartifact, semaphore) 
                            for subartifact in artifact.sublist]
                 tasks.extend(sub_tasks)
-                logging.info(f"🚀 Processing {len(tasks)} artifacts in parallel (1 main + {len(sub_tasks)} subartifacts) with max {max_concurrent} concurrent operations")
+                logger.info(f"🚀 Processing {len(tasks)} artifacts in parallel (1 main + {len(sub_tasks)} subartifacts) with max {max_concurrent} concurrent operations")
             
             # Execute all embedding tasks in parallel with error handling
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -361,11 +358,11 @@ class WorkSpace(BaseModel):
             # Log any errors that occurred during parallel processing
             errors = [r for r in results if isinstance(r, Exception)]
             if errors:
-                logging.error(f"❌ {len(errors)} errors occurred during parallel embedding processing:")
+                logger.error(f"❌ {len(errors)} errors occurred during parallel embedding processing:")
                 for error in errors:
-                    logging.error(f"   - {type(error).__name__}: {error}")
+                    logger.error(f"   - {type(error).__name__}: {error}")
             else:
-                logging.info(f"✅ All {len(tasks)} artifacts processed successfully in parallel")
+                logger.info(f"✅ All {len(tasks)} artifacts processed successfully in parallel")
 
     async def _store_artifact_embedding_with_semaphore(self, artifact: Artifact, semaphore: asyncio.Semaphore) -> None:
         """Store artifact embedding with concurrency control"""
@@ -375,8 +372,8 @@ class WorkSpace(BaseModel):
     async def _store_artifact_embedding(self, artifact: Artifact) -> None:
         """Store artifact embedding"""
         # if embedding is not enabled, skip
-        if not artifact.embedding or not artifact.get_embedding_text():
-            logging.info(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding is not enabled or embedding_text is empty")
+        if not artifact.get_embedding_text():
+            logger.info(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding is not enabled or embedding_text is empty")
             return
         
         # if chunking is enabled, chunk the artifact first
@@ -389,9 +386,9 @@ class WorkSpace(BaseModel):
             # Run embedding in thread pool to avoid blocking
             embedding_result = await asyncio.to_thread(self.embedder.embed_artifact, artifact)
             await asyncio.to_thread(self.vector_db.insert, self.workspace_id, [embedding_result])
-            logging.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+            logger.info(f"📦[EMBEDDING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
         except Exception as e:
-            logging.error(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
+            logger.error(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
             raise
 
     async def _chunk_artifact(self, artifact: Artifact) -> None:
@@ -399,17 +396,17 @@ class WorkSpace(BaseModel):
         if self.chunker:
             try:
                 chunks = await self.chunker.chunk(artifact)
-                logging.info(f"📦[CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
+                logger.info(f"📦[CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
                 
                 if chunks:
                     await self.save_artifact_chunks(artifact, chunks)
                     embedding_results = await self.embedder.async_embed_chunks(chunks)
                     await asyncio.to_thread(self.vector_db.insert, self.workspace_id, embedding_results)
-                    logging.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+                    logger.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
                 else:
-                    logging.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
+                    logger.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
             except Exception as e:
-                logging.error(f"📦[CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
+                logger.error(f"📦[CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}\n traceback is {traceback.format_exc()}")
                 raise
     
     async def save_artifact_chunks(self, artifact: Artifact, chunks: List[Chunk]) -> None:
@@ -490,10 +487,10 @@ class WorkSpace(BaseModel):
         Returns:
             Artifact object if found, None otherwise
         """
-        logging.info(f"🔍 retrieve_artifact search_query: {search_query}")
+        logger.info(f"🔍 retrieve_artifact search_query: {search_query}")
         results = []
         if not search_query:
-            logging.warning("🔍 retrieve_artifact search_query is None")
+            logger.warning("🔍 retrieve_artifact search_query is None")
             return None
         
         if not search_query.limit:
@@ -501,7 +498,7 @@ class WorkSpace(BaseModel):
         
         if not search_query.threshold:
             search_query.threshold = self.workspace_config.hybrid_search_config.threshold
-        logging.debug(f"🔍 retrieve_artifact final search_query: {search_query}")
+        logger.debug(f"🔍 retrieve_artifact final search_query: {search_query}")
 
         # 1. Embed query
         if self.workspace_config.hybrid_search_config.enabled:
@@ -510,31 +507,84 @@ class WorkSpace(BaseModel):
             # 2. Search vector db
             search_results = self.vector_db.search(self.workspace_id, [query_embedding], filter={}, threshold=search_query.threshold, limit=search_query.limit)
             if not search_results:
-                logging.warning("🔍 retrieve_artifact search_results is None")
+                logger.warning("🔍 retrieve_artifact search_results is None")
                 return None
             
             if not search_results.docs:
-                logging.warning("🔍 retrieve_artifact search_results.docs is None")
+                logger.warning("🔍 retrieve_artifact search_results.docs is None")
                 return None
             
             existing_artifact_ids = []
             
             for doc in search_results.docs:
                 if not doc.metadata:
-                    logging.warning("🔍 retrieve_artifact doc.metadata is None")
+                    logger.warning("🔍 retrieve_artifact doc.metadata is None")
                     continue
                 if doc.metadata.artifact_id in existing_artifact_ids:
-                    logging.debug(f"🔍 retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
+                    logger.debug(f"🔍 retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
                     continue
                 artifact = self.get_artifact(doc.metadata.artifact_id, parent_id = doc.metadata.parent_id)
                 existing_artifact_ids.append(doc.metadata.artifact_id)
                 if not artifact:
-                    logging.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
+                    logger.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
                     continue
-                logging.debug(f"🔍 retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
+                logger.debug(f"🔍 retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
                 results.append(HybridSearchResult(artifact=artifact, score=doc.score))
         
-        logging.info(f"🔍 retrieve_artifact results size: {len(results)}")
+        logger.info(f"🔍 retrieve_artifact results size: {len(results)}")
+        return results
+    
+    async def retrieve_chunk(self, search_query: ChunkSearchQuery) -> Optional[list[ChunkSearchResult]]:
+        """
+        Retrieve a chunk by its ID
+        """
+        logger.info(f"🔍 retrieve_chunk search_query: {search_query}")
+        if not self.workspace_config.chunk_config.enabled:
+            logger.warning("🔍 retrieve_chunk chunk_config is not enabled")
+            return None
+        
+        results = []
+        if not search_query:
+            logger.warning("🔍 retrieve_chunk search_query is None")
+            return None
+        
+        if not search_query.limit:
+            search_query.limit = 10
+        
+        if not search_query.threshold:
+            search_query.threshold = 0.8
+        
+        if not search_query.pre_n:
+            search_query.pre_n = 3
+        
+        if not search_query.next_n:
+            search_query.next_n = 3
+
+        chunk_query_embedding = self.embedder.embed_query(search_query.query)
+        search_results = self.vector_db.search(self.workspace_id, [chunk_query_embedding], filter={}, threshold=search_query.threshold, limit=search_query.limit)
+        if not search_results:
+            logger.warning("🔍 retrieve_chunk search_results is None")
+            return None
+        
+        if not search_results.docs:
+            logger.warning("🔍 retrieve_chunk search_results.docs is None")
+            return None
+        
+        existing_chunk_ids = []
+        for doc in search_results.docs:
+            if not doc.metadata:
+                logger.warning("🔍 retrieve_chunk doc.metadata is None")
+                continue
+            if doc.metadata.chunk_id in existing_chunk_ids:
+                logger.debug(f"🔍 retrieve_chunk chunk_id already exists: {doc.metadata.chunk_id}")
+                continue
+            pre_n_chunks, chunk, next_n_chunks = self.repository.get_chunk_window(doc.metadata.artifact_id, parent_id = doc.metadata.parent_id, chunk_index=doc.metadata.chunk_index, pre_n=search_query.pre_n, next_n=search_query.next_n)
+            if not chunk:
+                logger.warning(f"🔍 retrieve_chunk chunk is None: {doc.metadata.chunk_id}")
+                continue
+            logger.debug(f"🔍 retrieve_chunk chunks- {pre_n_chunks} {chunk} {next_n_chunks} score: {doc.score}")
+            results.append(ChunkSearchResult(pre_n_chunks=pre_n_chunks, chunk=chunk, next_n_chunks=next_n_chunks, score=doc.score))
+
         return results
     
     #########################################################
@@ -616,7 +666,7 @@ class WorkSpace(BaseModel):
             ]
         }
 
-        logging.info(f"💼 save_workspace {self.workspace_id}")
+        logger.info(f"💼 save_workspace {self.workspace_id}")
         # Store workspace information with workspace_id in metadata
         self.repository.store_index(
             index_data=workspace_data

@@ -5,7 +5,7 @@ import time
 import uuid
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Literal
+from typing import Dict, Any, Optional, List, Literal, Tuple
 
 from pydantic import BaseModel
 
@@ -67,7 +67,7 @@ class LocalPathRepository(BaseRepository):
             self._save_index(index)
             return index
 
-    def _artifact_dir(self, artifact_id: str) -> Path:
+    def full_artifact_dir(self, artifact_id: str) -> Path:
         """
         Get the directory path for an artifact.
         Args:
@@ -130,7 +130,7 @@ class LocalPathRepository(BaseRepository):
             None
         """
         artifact_id = artifact.artifact_id
-        artifact_dir = self._artifact_dir(artifact_id)
+        artifact_dir = self.full_artifact_dir(artifact_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         sub_artifacts_meta = []
@@ -186,27 +186,63 @@ class LocalPathRepository(BaseRepository):
                 return None
         
         return None
+    
+    def get_chunk_window(self, artifact_id: str, parent_id: str, chunk_index: int, pre_n: int, next_n: int) -> Optional[Tuple[Optional[list[Chunk]], Optional[Chunk], Optional[list[Chunk]]]]:
+        """
+        Get a window of chunks by artifact ID, parent ID, chunk index, pre n, next n
+        Args:
+            artifact_id: Artifact ID
+            parent_id: Parent ID
+            chunk_index: Chunk index
+            pre_n: Pre n
+            next_n: Next n
+        Returns:
+            List of chunks
+        """
+        chunk_dir = self._full_path(self._chunk_dir(artifact_id, parent_id))
+        
+        if not chunk_dir.exists():
+            return None, None, None
+        
+        chunk_file_name = f"{artifact_id}_chunk_{chunk_index}.json"
+        chunk_file_path = chunk_dir / chunk_file_name
+        if not chunk_file_path.exists():
+            return None, None, None
+        
+        with open(chunk_file_path, "r", encoding="utf-8") as f:
+            chunk_content = f.read()
+        
+        chunk = Chunk.model_validate_json(chunk_content)
+        pre_n_chunks = []
+        next_n_chunks = []
+        for i in range(pre_n):
+            if chunk_index - i - 1 < 0:
+                break
+            pre_n_chunk_file_name = f"{artifact_id}_chunk_{chunk_index - i - 1}.json"
+            pre_n_chunk_file_path = chunk_dir / pre_n_chunk_file_name
+            if pre_n_chunk_file_path.exists():
+                with open(pre_n_chunk_file_path, "r", encoding="utf-8") as f:
+                    pre_n_chunk_content = f.read()
+                    pre_n_chunk = Chunk.model_validate_json(pre_n_chunk_content)
+                    pre_n_chunks.append(pre_n_chunk)
+        for i in range(next_n):
+            next_n_chunk_file_name = f"{artifact_id}_chunk_{chunk_index + i + 1}.json"
+            next_n_chunk_file_path = chunk_dir / next_n_chunk_file_name
+            if next_n_chunk_file_path.exists():
+                with open(next_n_chunk_file_path, "r", encoding="utf-8") as f:
+                    next_n_chunk_content = f.read()
+                    next_n_chunk = Chunk.model_validate_json(next_n_chunk_content)
+                    next_n_chunks.append(next_n_chunk)
+        return pre_n_chunks, chunk, next_n_chunks
 
     def store_artifact_chunks(self, artifact: "Artifact", chunks: list["Chunk"]) -> None:
         """
-        将chunks保存到本地文件系统，每个chunk为单独文件。
-
-        - 如果artifact有parent_id，则目录为artifacts/{parent_id}/sublist/{artifact_id}/chunks
-        - 否则目录为artifacts/{artifact_id}/chunks
-        文件名为chunk.chunk_file_name，内容为chunk.content。
-        Args:
-            artifact: Artifact对象
-            chunks: Chunk对象列表
-        Returns:
-            None
+        Store chunks in the local file system.
         """
-        if artifact.parent_id:
-            chunk_dir = self._full_path(f"artifacts/{artifact.parent_id}/sublist/{artifact.artifact_id}/chunks")
-        else:
-            chunk_dir = self._full_path(f"artifacts/{artifact.artifact_id}/chunks")
+        chunk_dir = self._full_path(self._chunk_dir(artifact.artifact_id, artifact.parent_id))
         chunk_dir.mkdir(parents=True, exist_ok=True)
         for chunk in chunks:
             file_path = chunk_dir / chunk.chunk_file_name
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(chunk.content)
+                f.write(chunk.model_dump_json(indent=2))
         

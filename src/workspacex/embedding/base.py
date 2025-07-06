@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-import logging
+from workspacex.utils.logger import logger
 from typing import List, Optional
 import asyncio
 import time
@@ -278,12 +278,12 @@ class EmbeddingsBase(Embeddings):
             List[EmbeddingsResult]: List of embedding results.
         """
         # 🚀 Start embedding chunks
-        logging.info("[async_embed_chunks]  Start embedding {} chunks...".format(len(chunks)))
+        logger.info("[async_embed_chunks]  Start embedding {} chunks...".format(len(chunks)))
         start_time = time.time()
         results = await asyncio.gather(*[self._async_embed_chunk(chunk) for chunk in chunks])
         elapsed = time.time() - start_time
         # ✅ Embedding finished
-        logging.info(f"[async_embed_chunks] ✅ Finished embedding {len(chunks)} chunks in {elapsed:.2f} seconds.")
+        logger.info(f"[async_embed_chunks] ✅ Finished embedding {len(chunks)} chunks in {elapsed:.2f} seconds.")
         return results
     
     async def _async_embed_chunk(self, chunk: Chunk) -> EmbeddingsResult:

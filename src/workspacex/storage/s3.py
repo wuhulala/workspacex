@@ -1,11 +1,12 @@
 import json
 import time
-import logging
-from typing import Dict, Any, Optional
+from workspacex.utils.logger import logger
+from typing import Dict, Any, Optional, Tuple
 import s3fs
-from workspacex.artifact import Artifact, ArtifactType
+from workspacex.artifact import Artifact, ArtifactType, Chunk
 from .base import BaseRepository
 from workspacex.utils.timeit import timeit
+import mimetypes
 
 
 class S3Repository(BaseRepository):
@@ -40,17 +41,29 @@ class S3Repository(BaseRepository):
         """
         return f"{self.s3_path}/{relative_path}" if relative_path else self.s3_path
 
-    @timeit(logging.info,
+    def guess_content_type(self, filename: str) -> str:
+        """
+        Guess the MIME type based on the file extension.
+        Args:
+            filename: The file name or path
+        Returns:
+            MIME type string, defaults to application/octet-stream
+        """
+        mime, _ = mimetypes.guess_type(filename)
+        return mime or "application/octet-stream"
+
+    @timeit(logger.info,
             "S3Repository._save_index took {elapsed_time:.3f} seconds")
     def _save_index(self, index: Dict[str, Any]) -> None:
         if self.fs.exists(self.index_path):
             version_name = f"index_his_{int(time.time())}.json"
             version_path = f"{self.versions_dir}/{version_name}"
             self.fs.move(self.index_path, version_path)
-        with self.fs.open(self.index_path, 'w') as f:
+        content_type = self.guess_content_type(self.index_path)
+        with self.fs.open(self.index_path, 'w', ContentType=content_type) as f:
             json.dump(index, f, indent=2, ensure_ascii=False)
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "S3Repository._load_index took {elapsed_time:.3f} seconds")
     def _load_index(self) -> Dict[str, Any]:
         if self.fs.exists(self.index_path):
@@ -61,7 +74,7 @@ class S3Repository(BaseRepository):
             self._save_index(index)
             return index
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "S3Repository.retrieve_artifact took {elapsed_time:.3f} seconds")
     def retrieve_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
         index_path = self._full_path(self._artifact_index_path(artifact_id))
@@ -70,14 +83,14 @@ class S3Repository(BaseRepository):
                 return json.load(f)
         return None
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "S3Repository.store_index took {elapsed_time:.3f} seconds")
     def store_index(self, index_data: dict) -> None:
         index = self._load_index()
         index["workspace"] = index_data
         self._save_index(index)
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "S3Repository.store_artifact took {elapsed_time:.3f} seconds")
     def store_artifact(self, artifact: "Artifact") -> None:
         artifact_id = artifact.artifact_id
@@ -85,7 +98,7 @@ class S3Repository(BaseRepository):
         if not self.fs.exists(artifact_dir):
             self.fs.mkdirs(artifact_dir, exist_ok=True)
         sub_artifacts_meta = []
-        logging.info(
+        logger.info(
             f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts"
         )
         for sub in artifact.sublist:
@@ -99,7 +112,8 @@ class S3Repository(BaseRepository):
                 content = sub.content
                 data_path = self._full_path(
                     self._sub_data_path(artifact_id, sub_id, ext="txt"))
-                with self.fs.open(data_path, "w") as f:
+                content_type = self.guess_content_type(data_path)
+                with self.fs.open(data_path, "w", ContentType=content_type) as f:
                     f.write(content)
                 sub_meta["content"] = ""
             sub_artifacts_meta.append(sub_meta)
@@ -107,15 +121,16 @@ class S3Repository(BaseRepository):
         artifact_meta["sublist"] = sub_artifacts_meta
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         from workspacex.storage.local import CommonEncoder
-        logging.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts")
-        with self.fs.open(index_path, "w") as f:
+        logger.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts")
+        content_type = self.guess_content_type(index_path)
+        with self.fs.open(index_path, "w", ContentType=content_type) as f:
             json.dump(artifact_meta,
                       f,
                       indent=2,
                       ensure_ascii=False,
                       cls=CommonEncoder)
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "S3Repository.get_index_data took {elapsed_time:.3f} seconds")
     def get_index_data(self) -> Optional[Dict[str, Any]]:
         """
@@ -137,27 +152,59 @@ class S3Repository(BaseRepository):
             with self.fs.open(data_path, "r") as f:
                 return f.read()
         return None
+    
+    def get_chunk_window(self, artifact_id: str, parent_id: str, chunk_index: int, pre_n: int, next_n: int) -> Optional[Tuple[list[Chunk], Chunk, list[Chunk]]]:
+        """
+        Get a window of chunks by artifact ID, parent ID, chunk index, pre n, next n
+        """
+        chunk_dir = self._full_path(self._chunk_dir(artifact_id, parent_id))
+        logger.info(f"🔍 get_chunk_window chunk_dir: {chunk_dir}")
+        if not self.fs.exists(chunk_dir):
+            return None, None, None
+        chunk_file_name = f"{artifact_id}_chunk_{chunk_index}.json"
+        chunk_file_path = f"{chunk_dir}/{chunk_file_name}"
+        logger.debug(f"🔍 get_chunk_window chunk_file_path: {chunk_file_path}")
+        if not self.fs.exists(chunk_file_path):
+            return None, None, None
+        with self.fs.open(chunk_file_path, "r") as f:
+            chunk_content = f.read()
+        chunk = Chunk.model_validate_json(chunk_content)
+        pre_n_chunks = []
+        next_n_chunks = []
+        for i in range(pre_n):
+            if chunk_index - i - 1 < 0:
+                break
+            pre_n_chunk_file_name = f"{artifact_id}_chunk_{chunk_index - i - 1}.json"
+            pre_n_chunk_file_path = f"{chunk_dir}/{pre_n_chunk_file_name}"
+            if self.fs.exists(pre_n_chunk_file_path):
+                with self.fs.open(pre_n_chunk_file_path, "r") as f:
+                    pre_n_chunk_content = f.read()
+                    pre_n_chunk = Chunk.model_validate_json(pre_n_chunk_content)
+                    pre_n_chunks.append(pre_n_chunk)
+        for i in range(next_n):
+            next_n_chunk_file_name = f"{artifact_id}_chunk_{chunk_index + i + 1}.json"
+            next_n_chunk_file_path = f"{chunk_dir}/{next_n_chunk_file_name}"
+            if self.fs.exists(next_n_chunk_file_path):
+                with self.fs.open(next_n_chunk_file_path, "r") as f:
+                    next_n_chunk_content = f.read()
+                    next_n_chunk = Chunk.model_validate_json(next_n_chunk_content)
+                    next_n_chunks.append(next_n_chunk)
+        return pre_n_chunks, chunk, next_n_chunks
 
     def store_artifact_chunks(self, artifact: "Artifact", chunks: list["Chunk"]) -> None:
         """
-        将chunks保存到S3，每个chunk为单独文件。
-
-        - 如果artifact有parent_id，则目录为artifacts/{parent_id}/sublist/{artifact_id}/chunks
-        - 否则目录为artifacts/{artifact_id}/chunks
-        文件名为chunk.chunk_file_name，内容为chunk.content。
-        Args:
-            artifact: Artifact对象
-            chunks: Chunk对象列表
-        Returns:
-            None
+        Store chunks in the S3 bucket.
         """
-        if artifact.parent_id:
-            chunk_dir = self._full_path(f"artifacts/{artifact.parent_id}/sublist/{artifact.artifact_id}/chunks")
-        else:
-            chunk_dir = self._full_path(f"artifacts/{artifact.artifact_id}/chunks")
+        chunk_dir = self._full_path(self._chunk_dir(artifact.artifact_id, artifact.parent_id))
         if not self.fs.exists(chunk_dir):
             self.fs.mkdirs(chunk_dir, exist_ok=True)
         for chunk in chunks:
-            file_path = f"{chunk_dir}/{chunk.chunk_file_name}"
-            with self.fs.open(file_path, "w") as f:
-                f.write(chunk.content)
+            try:
+                file_path = f"{chunk_dir}/{chunk.chunk_file_name}"
+                logger.debug(f"🔍 store_artifact_chunks file_path: {file_path}")
+                content_type = self.guess_content_type(file_path)
+                with self.fs.open(file_path, "w", ContentType=content_type) as f:
+                    f.write(chunk.model_dump_json(indent=2))
+            except Exception as e:
+                logger.error(f"🔍 store_artifact_chunks error: {e}")
+                raise e

@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 
 from workspacex.reranker.base import BaseRerankRunner, RerankConfig, RerankResult
 from workspacex.artifact import Artifact
-import logging
+from workspacex.utils.logger import logger
 
 
 class Qwen3RerankerRunner(BaseRerankRunner):
@@ -22,7 +22,7 @@ class Qwen3RerankerRunner(BaseRerankRunner):
             import torch
             from transformers import AutoTokenizer, AutoModelForCausalLM
         except ImportError as e:
-            logging.error("Required dependencies not installed. Please install torch and transformers>=4.51.0")
+            logger.error("Required dependencies not installed. Please install torch and transformers>=4.51.0")
             raise ImportError("Required dependencies not installed. Please install torch and transformers>=4.51.0") from e
 
         self.config = config
@@ -41,7 +41,7 @@ class Qwen3RerankerRunner(BaseRerankRunner):
                     torch_dtype=torch.float16,
                     attn_implementation="flash_attention_2").cuda()
             except Exception as e:
-                logging.warning(
+                logger.warning(
                     f"Failed to enable flash attention: {e}. Using default model."
                 )
                 self.model = self.model.cuda()
@@ -103,7 +103,7 @@ class Qwen3RerankerRunner(BaseRerankRunner):
                 for key in inputs:
                     inputs[key] = inputs[key].to(self.model.device)
         except ImportError:
-            logging.error("torch not found when trying to move tensors to GPU")
+            logger.error("torch not found when trying to move tensors to GPU")
             raise
         return inputs
 
@@ -126,7 +126,7 @@ class Qwen3RerankerRunner(BaseRerankRunner):
                 scores = batch_scores[:, 1].exp().tolist()
                 return scores
         except ImportError:
-            logging.error("torch not found when computing logits")
+            logger.error("torch not found when computing logits")
             raise
 
     def run(

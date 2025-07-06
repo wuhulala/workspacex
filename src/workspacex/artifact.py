@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, List
 
 from pydantic import BaseModel, Field, model_validator
 
+
 class ArtifactType(Enum):
     """Defines supported artifact types"""
     TEXT = "TEXT"
@@ -54,7 +55,7 @@ class Chunk(BaseModel):
     
     @property
     def chunk_file_name(self) -> str:
-        return f"{self.artifact_id}_chunk_{self.chunk_metadata.chunk_index}.txt"
+        return f"{self.artifact_id}_chunk_{self.chunk_metadata.chunk_index}.json"
 
 class ArtifactStatus(Enum):
     """Artifact status"""
@@ -82,7 +83,6 @@ class Artifact(BaseModel):
     current_version: str = Field(default="", description="Current version of the artifact")
     version_history: list = Field(default_factory=list, description="History of versions for the artifact")
     create_file: bool = Field(default=False, description="Flag to indicate if a file should be created")
-    embedding: bool = Field(default=False, description="Flag to indicate if an embedding should be saved")
     sublist: List['Artifact'] = Field(default_factory=list, description="List of sub-artifacts (children)")
     chunk_list: List[Chunk] = Field(default_factory=list, description="List of chunks")
 
@@ -249,5 +249,22 @@ class HybridSearchResult(BaseModel):
     Search result for an artifact
     """
     artifact: Artifact = Field(..., description="Artifact")
+    score: float = Field(..., description="Score")
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Creation timestamp")
+
+class ChunkSearchQuery(BaseModel):
+    query: str = Field(..., description="Query string")
+    limit: int = Field(default=10, description="Limit")
+    threshold: float = Field(default=0.8, description="Threshold")
+    pre_n: int = Field(default=3, description="Pre n")
+    next_n: int = Field(default=3, description="Next n")
+
+class ChunkSearchResult(BaseModel):
+    """
+    Search result for a chunk
+    """
+    chunk: Chunk = Field(..., description="Chunk")
+    pre_n_chunks: Optional[List[Chunk]] = Field(default_factory=list, description="Pre n chunk")
+    next_n_chunks: Optional[List[Chunk]] = Field(default_factory=list, description="Next n chunk")
     score: float = Field(..., description="Score")
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Creation timestamp")

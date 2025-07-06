@@ -7,7 +7,7 @@ A minimal test to verify that the enhanced parallel processing works correctly.
 
 import asyncio
 import time
-import logging
+from workspacex.utils.logger import logger
 from typing import List
 
 from workspacex.workspace import WorkSpace
@@ -102,7 +102,7 @@ async def main():
     
     # Set up logging
     logging.basicConfig(
-        level=logging.INFO,
+        level=logger.info,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     

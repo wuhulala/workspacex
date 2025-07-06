@@ -44,7 +44,7 @@ poetry install --extras "reranker-server"  # Installs all features
 
 ```python
 import asyncio
-import logging
+from workspacex.utils.logger import logger
 
 from workspacex import WorkSpace, ArtifactType
 
@@ -161,3 +161,10 @@ Let me know if you want to add more details, such as advanced usage, API docs, o
 - 支持对 `Artifact` 的 `chunk_list` 进行批量嵌入，新增了如下接口：
   - `embed_chunks(artifact: Artifact) -> list[EmbeddingsResult]`：对 artifact 的 chunk_list 进行同步嵌入。
   - `async_embed_chunks(artifact: Artifact) -> list[EmbeddingsResult]`：对 artifact 的 chunk_list 进行异步嵌入。
+
+## Changelog
+
+### S3 Storage Improvements
+- All files uploaded to S3 now automatically set the correct MIME TYPE (Content-Type), including txt, json, images, etc.
+- Uses automatic type inference based on file extension, no manual specification needed.
+- This ensures files are properly recognized and handled in S3.

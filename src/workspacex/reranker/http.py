@@ -1,7 +1,7 @@
 from typing import List, Optional
 from workspacex.reranker.base import BaseRerankRunner, RerankConfig, RerankResult
 from workspacex.artifact import Artifact
-import logging
+from workspacex.utils.logger import logger
 
 import requests
 
@@ -42,7 +42,7 @@ class HttpRerankRunner(BaseRerankRunner):
         """
         return self._run_http(query, documents, score_threshold, top_n, user)
 
-    @timeit(logging.info, "HttpRerankRunner._run_http took {elapsed_time:.3f} seconds")
+    @timeit(logger.info, "HttpRerankRunner._run_http took {elapsed_time:.3f} seconds")
     def _run_http(
         self,
         query: str,

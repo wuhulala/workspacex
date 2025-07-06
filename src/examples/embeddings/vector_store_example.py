@@ -1,5 +1,5 @@
 import asyncio
-import logging
+from workspacex.utils.logger import logger
 from typing import List
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.embedding.base import EmbeddingsConfig
@@ -8,7 +8,7 @@ from workspacex.vector.dbs.chroma import ChromaVectorDB
 from dotenv import load_dotenv
 import os
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logger.info)
 
 async def main():
     load_dotenv()
@@ -55,7 +55,7 @@ async def main():
     
     # Delete collection if it exists (for demo purposes)
     if vector_store.has_collection(collection_name):
-        logging.info(f"Deleting collection: {collection_name}")
+        logger.info(f"Deleting collection: {collection_name}")
         vector_store.delete_collection(collection_name)
     
     # Insert embeddings

@@ -10,7 +10,7 @@ def timeit(log_func: Callable[[str], None] = print,
     Decorator to measure and log the execution time of a function (sync or async).
 
     Args:
-        log_func: Logging function, e.g., logging.info.
+        log_func: Logging function, e.g., logger.info.
         msg: Message format, supports {func_name} and {elapsed_time}.
 
     Returns:

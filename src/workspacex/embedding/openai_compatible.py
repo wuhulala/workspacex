@@ -1,4 +1,4 @@
-import logging
+from workspacex.utils.logger import logger
 from typing import Any, List
 
 from openai import OpenAI
@@ -27,7 +27,7 @@ class OpenAICompatibleEmbeddings(EmbeddingsBase):
         self.client = OpenAI(api_key=config.api_key, base_url=config.base_url)
 
 
-    @timeit(logging.info,
+    @timeit(logger.info,
             "OpenAI embedding query completed in {elapsed_time:.3f} seconds")
     def embed_query(self, text: str) -> List[float]:
         """
@@ -43,7 +43,7 @@ class OpenAICompatibleEmbeddings(EmbeddingsBase):
                 input=text,
                 dimensions=self.config.dimensions)
             data = response.data
-            logging.info(f"OpenAI embedding response: {data}")
+            logger.info(f"OpenAI embedding response: {data}")
             return self.resolve_embedding(data)
         except Exception as e:
             import traceback
@@ -52,7 +52,7 @@ class OpenAICompatibleEmbeddings(EmbeddingsBase):
         
 
     @timeit(
-        logging.info,
+        logger.info,
         "OpenAI async embedding query completed in {elapsed_time:.3f} seconds")
     async def async_embed_query(self, text: str) -> List[float]:
         """
@@ -68,7 +68,7 @@ class OpenAICompatibleEmbeddings(EmbeddingsBase):
                 input=text,
                 dimensions=self.config.dimensions)
             data = response.data
-            logging.info(f"OpenAI embedding response: {data}")
+            logger.info(f"OpenAI embedding response: {data}")
             return self.resolve_embedding(data)
         except Exception as e:
             import traceback

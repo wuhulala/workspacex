@@ -1,5 +1,5 @@
 import json
-import logging
+from workspacex.utils.logger import logger
 from builtins import anext
 from datetime import datetime
 from typing import Any, Dict, Generator, AsyncGenerator, Optional

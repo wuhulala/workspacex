@@ -4,13 +4,13 @@ from typing import List, Optional, Union
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 import uvicorn
-import logging
+from workspacex.utils.logger import logger
 from workspacex.reranker.base import RerankConfig
 from workspacex.reranker.local import Qwen3RerankerRunner
 from workspacex.artifact import Artifact, ArtifactType
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logger.info)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
