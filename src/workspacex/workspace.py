@@ -310,11 +310,11 @@ class WorkSpace(BaseModel):
                 for sub_artifact in parent_artifact.sublist:
                     if sub_artifact.artifact_id == artifact.artifact_id:
                         sub_artifact.update_metadata(metadata)
-                        self.repository.store_artifact(parent_artifact)
+                        self.repository.store_artifact(parent_artifact, save_sub_list_content=False)
                         return True
         else:
             artifact.update_metadata(metadata)
-            self.repository.store_artifact(artifact)
+            self.repository.store_artifact(artifact, save_sub_list_content=False)
         return True
 
     async def delete_artifact(self, artifact_id: str) -> bool:

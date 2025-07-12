@@ -35,7 +35,7 @@ class BaseRepository(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, artifact: Any) -> None:
+    def store_artifact(self, artifact: Any, save_sub_list_content: bool = True) -> None:
         """
         Store an artifact and its sub-artifacts.
         Args:

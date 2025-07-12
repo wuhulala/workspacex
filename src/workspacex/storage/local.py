@@ -121,7 +121,7 @@ class LocalPathRepository(BaseRepository):
         index["workspace"] = index_data
         self._save_index(index)
 
-    def store_artifact(self, artifact: "Artifact") -> None:
+    def store_artifact(self, artifact: "Artifact", save_sub_list_content: bool = True) -> None:
         """
         Store an artifact and its sub-artifacts in the file system.
         Args:
@@ -132,7 +132,13 @@ class LocalPathRepository(BaseRepository):
         artifact_id = artifact.artifact_id
         artifact_dir = self.full_artifact_dir(artifact_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        artifact_meta = artifact.to_dict()
+        self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, save_sub_list_content)
+        index_path = self._artifact_index_path(artifact_id)
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 
+    def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta,save_sub_list_content ):
         sub_artifacts_meta = []
         for sub in artifact.sublist:
             sub_id = sub.artifact_id
@@ -141,18 +147,15 @@ class LocalPathRepository(BaseRepository):
             sub_dir.mkdir(parents=True, exist_ok=True)
             sub_meta = sub.to_dict()
             # TODO add ext
-            if sub_type == ArtifactType.TEXT:
-                content = sub.content
-                data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
-                with open(data_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                sub_meta["content"] = ""
+            if save_sub_list_content:
+                if sub_type == ArtifactType.TEXT:
+                    content = sub.content
+                    data_path = self._sub_data_path(artifact_id, sub_id, ext="txt")
+                    with open(data_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    sub_meta["content"] = ""
             sub_artifacts_meta.append(sub_meta)
-        artifact_meta = artifact.to_dict()
         artifact_meta["sublist"] = sub_artifacts_meta
-        index_path = self._artifact_index_path(artifact_id)
-        with open(index_path, "w", encoding="utf-8") as f:
-            json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 
     def get_index_data(self) -> Optional[Dict[str, Any]]:
         """

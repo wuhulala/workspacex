@@ -92,7 +92,7 @@ class S3Repository(BaseRepository):
 
     @timeit(logger.info,
             "S3Repository.store_artifact took {elapsed_time:.3f} seconds")
-    def store_artifact(self, artifact: "Artifact") -> None:
+    def store_artifact(self, artifact: "Artifact", save_sub_list_content: bool = True) -> None:
         artifact_id = artifact.artifact_id
         artifact_dir = self._full_path(self._artifact_dir(artifact_id))
         if not self.fs.exists(artifact_dir):
@@ -101,24 +101,9 @@ class S3Repository(BaseRepository):
         logger.info(
             f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts"
         )
-        for sub in artifact.sublist:
-            sub_id = sub.artifact_id
-            sub_type = sub.artifact_type
-            sub_dir = self._full_path(self._sub_dir(artifact_id, sub_id))
-            if not self.fs.exists(sub_dir):
-                self.fs.mkdirs(sub_dir, exist_ok=True)
-            sub_meta = sub.to_dict()
-            if sub_type == ArtifactType.TEXT:
-                content = sub.content
-                data_path = self._full_path(
-                    self._sub_data_path(artifact_id, sub_id, ext="txt"))
-                content_type = self.guess_content_type(data_path)
-                with self.fs.open(data_path, "w", ContentType=content_type) as f:
-                    f.write(content)
-                sub_meta["content"] = ""
-            sub_artifacts_meta.append(sub_meta)
         artifact_meta = artifact.to_dict()
-        artifact_meta["sublist"] = sub_artifacts_meta
+
+        self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content)
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         from workspacex.storage.local import CommonEncoder
         logger.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts")
@@ -129,6 +114,26 @@ class S3Repository(BaseRepository):
                       indent=2,
                       ensure_ascii=False,
                       cls=CommonEncoder)
+
+    def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content):
+        for sub in artifact.sublist:
+            sub_id = sub.artifact_id
+            sub_type = sub.artifact_type
+            sub_dir = self._full_path(self._sub_dir(artifact_id, sub_id))
+            if not self.fs.exists(sub_dir):
+                self.fs.mkdirs(sub_dir, exist_ok=True)
+            sub_meta = sub.to_dict()
+            if save_sub_list_content:
+                if sub_type == ArtifactType.TEXT:
+                    content = sub.content
+                    data_path = self._full_path(
+                        self._sub_data_path(artifact_id, sub_id, ext="txt"))
+                    content_type = self.guess_content_type(data_path)
+                    with self.fs.open(data_path, "w", ContentType=content_type) as f:
+                        f.write(content)
+                    sub_meta["content"] = ""
+            sub_artifacts_meta.append(sub_meta)
+            artifact_meta["sublist"] = sub_artifacts_meta
 
     @timeit(logger.info,
             "S3Repository.get_index_data took {elapsed_time:.3f} seconds")
