@@ -299,6 +299,23 @@ class WorkSpace(BaseModel):
 
             return artifact
         return None
+    
+    async def update_artifact_metadata(self, artifact: Artifact, metadata: Dict[str, Any]) -> bool:
+        """
+        Update artifact metadata
+        """
+        if artifact.parent_id:
+            parent_artifact = self.get_artifact(artifact.parent_id)
+            if parent_artifact:
+                for sub_artifact in parent_artifact.sublist:
+                    if sub_artifact.artifact_id == artifact.artifact_id:
+                        sub_artifact.update_metadata(metadata)
+                        self.repository.store_artifact(parent_artifact)
+                        return True
+        else:
+            artifact.update_metadata(metadata)
+            self.repository.store_artifact(artifact)
+        return True
 
     async def delete_artifact(self, artifact_id: str) -> bool:
         """
@@ -467,7 +484,7 @@ class WorkSpace(BaseModel):
         Returns:
             Raw unescaped concatenated content of all matching artifacts
         """
-        pass
+        return self.repository.get_subaritfact_content(artifact_id, parent_id)
     
     #########################################################
     # Hybrid Search

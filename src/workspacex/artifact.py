@@ -175,36 +175,40 @@ class Artifact(BaseModel):
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "status": self.status.name,
+            "parent_id": self.parent_id,
             # "version_count": len(self.version_history),
             # "version_history": self.version_history,
             # "sublist": [sub.to_dict() for sub in self.sublist] if self.sublist else []
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Artifact":
+    def from_dict(cls, data: Dict[str, Any]) -> Optional["Artifact"]:
         """
         Create an artifact instance from a dictionary, including sublist.
         Args:
             data: Dictionary data
         Returns:
-            Artifact instance
+            Artifact instance or None if artifact_id is not present
         """
-        artifact_type = ArtifactType(data["artifact_type"])
+        if not data.get("artifact_id"):
+            return None
+        artifact_type = ArtifactType(data.get("artifact_type"))
         artifact = cls(
             artifact_type=artifact_type,
-            content=data["content"],
-            metadata=data["metadata"],
-            artifact_id=data.get("artifact_id", str(uuid.uuid4()))
+            content=data.get("content"),
+            metadata=data.get("metadata"),
+            artifact_id=data.get("artifact_id")
         )
-        artifact.created_at = data["created_at"]
-        artifact.updated_at = data["updated_at"]
-        artifact.status = ArtifactStatus[data["status"]]
+        artifact.parent_id = data.get("parent_id")
+        artifact.created_at = data.get("created_at")
+        artifact.updated_at = data.get("updated_at")
+        artifact.status = ArtifactStatus[data.get("status")]
         # If version history exists, restore it as well
         if "version_history" in data:
-            artifact.version_history = data["version_history"]
+            artifact.version_history = data.get("version_history")
         # Restore sublist if present
-        if "sublist" in data and data["sublist"]:
-            artifact.sublist = [cls.from_dict(sub) for sub in data["sublist"]]
+        if "sublist" in data and data.get("sublist"):
+            artifact.sublist = [cls.from_dict(sub) for sub in data.get("sublist")]
         return artifact
 
     def add_subartifact(self, subartifact: 'Artifact') -> None:
@@ -233,6 +237,16 @@ class Artifact(BaseModel):
 
     def get_chunk_list(self) -> list[Chunk]:
         return self.chunk_list
+
+    def get_metadata_value(self, key: str) -> Any:
+        """
+        Get the value of a metadata field by key.
+        Args:
+            key (str): The metadata key to retrieve
+        Returns:
+            Any: The value associated with the key, or None if not found
+        """
+        return self.metadata.get(key)
 
     @property
     def support_chunking(self):

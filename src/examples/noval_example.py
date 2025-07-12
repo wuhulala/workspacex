@@ -34,13 +34,13 @@ def ensure_output_folder(folder_path: str) -> None:
         os.makedirs(folder_path)
 
 
-async def create_novel_artifact_example(embedding_flag: bool = False, chunker_flag: bool = False) -> None:
+async def create_novel_artifact_example() -> None:
     """
     Example: Create a NovelArtifact from a novel file, split by chapters, and save chapters to files.
     """
     ensure_output_folder(SAVE_CHAPTERS_BASE_FOLDER)
     # Create a workspace
-    ws = WorkSpace(workspace_id="novel_example_workspace_v7", name="Novel Example Workspace", clear_existing=True)
+    ws = WorkSpace(workspace_id="novel_example_workspace_v8", name="Novel Example Workspace", clear_existing=True)
     # Create the novel artifact and save chapters
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",
@@ -54,7 +54,7 @@ async def create_novel_artifact_example(embedding_flag: bool = False, chunker_fl
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
         logger.info(f"Chapter {i+1}: {subartifact.content[:100]}")
 
-    if embedding_flag:
+    if ws.workspace_config.embedding_config.enabled:
         logger.info("🔍 Hybrid search example")
         await hybrid_search_example(ws)
 
@@ -162,9 +162,9 @@ async def hybrid_search_chunk_example(ws: WorkSpace) -> None:
         logger.info(f"Chunk Next Chunks: {[chunk.chunk_id for chunk in result.next_n_chunks]}")
 
 if __name__ == "__main__":
-    # asyncio.run(create_novel_artifact_example(embedding_flag=True, chunker_flag=False))
+    asyncio.run(create_novel_artifact_example())
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())
-    ws = WorkSpace(workspace_id="novel_example_workspace_v7", name="Novel Example Workspace", clear_existing=False)
+    # ws = WorkSpace(workspace_id="novel_example_workspace_v7", name="Novel Example Workspace", clear_existing=False)
     # asyncio.run(hybrid_search_example(ws))
-    asyncio.run(hybrid_search_chunk_example(ws))
+    # asyncio.run(hybrid_search_chunk_example(ws))

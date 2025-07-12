@@ -155,3 +155,7 @@ The server will start on http://localhost:8000. Interactive API docs are availab
 - All files uploaded to S3 now automatically set the correct MIME TYPE (Content-Type), including txt, json, images, etc.
 - Uses automatic type inference based on file extension, no manual specification needed.
 - This ensures files are properly recognized and handled in S3.
+
+## ✨ Artifact Method
+
+- `get_metadata_value(key: str) -> Any`：根据 key 获取元数据字段的值，如果不存在则返回 None。
