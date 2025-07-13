@@ -1,23 +1,23 @@
-from workspacex.utils.logger import logger
+import asyncio
 import os
 import traceback
 import uuid
-import json
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from workspacex.artifact import ArtifactType, Artifact, Chunk, ChunkSearchQuery, ChunkSearchResult, HybridSearchResult, HybridSearchQuery
+from workspacex.artifact import ArtifactType, Artifact, Chunk, ChunkSearchQuery, ChunkSearchResult, HybridSearchResult, \
+    HybridSearchQuery
 from workspacex.base import WorkspaceConfig
 from workspacex.chunk.base import ChunkerFactory
+from workspacex.code_artifact import CodeArtifact
 from workspacex.embedding.base import EmbeddingFactory, Embeddings
 from workspacex.noval_artifact import NovelArtifact
-from workspacex.code_artifact import CodeArtifact
+from workspacex.observer import WorkspaceObserver, get_observer
 from workspacex.storage.base import BaseRepository
 from workspacex.storage.local import LocalPathRepository
-from workspacex.observer import WorkspaceObserver, get_observer
+from workspacex.utils.logger import logger
 from workspacex.vector.dbs.base import VectorDB
 from workspacex.vector.factory import VectorDBFactory
 
@@ -353,51 +353,60 @@ class WorkSpace(BaseModel):
         self.repository.store_artifact(artifact=artifact)
         logger.info(f"📦[CONTENT] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} content finished")
 
+        # Create semaphore to limit concurrent operations (default: 10)
+        max_concurrent = getattr(self.workspace_config, 'max_concurrent_embeddings', 10)
+        semaphore = asyncio.Semaphore(max_concurrent)
 
-        if self.workspace_config.embedding_config.enabled:
-            # Create semaphore to limit concurrent operations (default: 10)
-            max_concurrent = getattr(self.workspace_config, 'max_concurrent_embeddings', 10)
-            semaphore = asyncio.Semaphore(max_concurrent)
-            
-            # Process main artifact and subartifacts in parallel for maximum concurrency 🚀
-            tasks = [self._store_artifact_embedding_with_semaphore(artifact, semaphore)]
-            
-            if artifact.sublist and len(artifact.sublist) > 0:
-                # Add subartifacts to parallel processing
-                sub_tasks = [self._store_artifact_embedding_with_semaphore(subartifact, semaphore) 
-                           for subartifact in artifact.sublist]
-                tasks.extend(sub_tasks)
-                logger.info(f"🚀 Processing {len(tasks)} artifacts in parallel (1 main + {len(sub_tasks)} subartifacts) with max {max_concurrent} concurrent operations")
-            
-            # Execute all embedding tasks in parallel with error handling
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Log any errors that occurred during parallel processing
-            errors = [r for r in results if isinstance(r, Exception)]
-            if errors:
-                logger.error(f"❌ {len(errors)} errors occurred during parallel embedding processing:")
-                for error in errors:
-                    logger.error(f"   - {type(error).__name__}: {error}")
-            else:
-                logger.info(f"✅ All {len(tasks)} artifacts processed successfully in parallel")
+        # Process main artifact and subartifacts in parallel for maximum concurrency 🚀
+        tasks = [self._store_artifact_chunk_and_embedding_with_semaphore(artifact, semaphore)]
 
-    async def _store_artifact_embedding_with_semaphore(self, artifact: Artifact, semaphore: asyncio.Semaphore) -> None:
+        if artifact.sublist and len(artifact.sublist) > 0:
+            # Add subartifacts to parallel processing
+            sub_tasks = [self._store_artifact_chunk_and_embedding_with_semaphore(subartifact, semaphore)
+                         for subartifact in artifact.sublist]
+            tasks.extend(sub_tasks)
+            logger.info(
+                f"🚀 Processing {len(tasks)} artifacts in parallel (1 main + {len(sub_tasks)} subartifacts) with max {max_concurrent} concurrent operations")
+
+        # Execute all embedding tasks in parallel with error handling
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Log any errors that occurred during parallel processing
+        errors = [r for r in results if isinstance(r, Exception)]
+        if errors:
+            logger.error(f"❌ {len(errors)} errors occurred during parallel :")
+            for error in errors:
+                logger.error(f"[Workspace]- {type(error).__name__}: {error}")
+        else:
+            logger.info(f"✅ All {len(tasks)} artifacts processed successfully in parallel")
+
+
+    async def _store_artifact_chunk_and_embedding_with_semaphore(self, artifact: Artifact, semaphore: asyncio.Semaphore) -> None:
         """Store artifact embedding with concurrency control"""
         async with semaphore:
-            return await self._store_artifact_embedding(artifact)
+            return await self._chunk_and_embedding(artifact)
 
-    async def _store_artifact_embedding(self, artifact: Artifact) -> None:
+    async def _chunk_and_embedding(self, artifact: Artifact) -> None:
         """Store artifact embedding"""
+
+
         # if embedding is not enabled, skip
         if not artifact.get_embedding_text():
-            logger.info(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding is not enabled or embedding_text is empty")
+            logger.info(
+                f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding is not enabled or embedding_text is empty")
             return
-        
+
         # if chunking is enabled, chunk the artifact first
         if self.workspace_config.chunk_config.enabled and artifact.support_chunking:
-            await self._chunk_artifact(artifact)
+            chunks = await self._chunk_artifact(artifact)
+
+            if self.workspace_config.embedding_config.enabled:
+                embedding_results = await self.embedder.async_embed_chunks(chunks)
+                await asyncio.to_thread(self.vector_db.insert, self.workspace_id, embedding_results)
+                logger.info(
+                    f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
             return
-        
+
         # else, embed the artifact directly - use asyncio.to_thread for CPU-intensive operations
         try:
             # Run embedding in thread pool to avoid blocking
@@ -408,7 +417,7 @@ class WorkSpace(BaseModel):
             logger.error(f"📦[EMBEDDING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
             raise
 
-    async def _chunk_artifact(self, artifact: Artifact) -> None:
+    async def _chunk_artifact(self, artifact: Artifact) -> Optional[list[Chunk]]:
         """Chunk artifact"""
         if self.chunker:
             try:
@@ -417,14 +426,15 @@ class WorkSpace(BaseModel):
                 
                 if chunks:
                     await self.save_artifact_chunks(artifact, chunks)
-                    embedding_results = await self.embedder.async_embed_chunks(chunks)
-                    await asyncio.to_thread(self.vector_db.insert, self.workspace_id, embedding_results)
-                    logger.info(f"📦[EMBEDDING-CHUNKING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} embedding_result finished")
+                    return chunks
                 else:
                     logger.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
+                    return []
             except Exception as e:
                 logger.error(f"📦[CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}\n traceback is {traceback.format_exc()}")
                 raise
+        else:
+            return []
     
     async def save_artifact_chunks(self, artifact: Artifact, chunks: List[Chunk]) -> None:
         """Save artifact chunks"""

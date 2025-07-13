@@ -1,10 +1,15 @@
-import json
-from workspacex.utils.logger import logger
-from builtins import anext
-from datetime import datetime
-from typing import Any, Dict, Generator, AsyncGenerator, Optional
+from pydantic import Field, BaseModel
 
-from pydantic import Field, BaseModel, model_validator
+from workspacex.chunk.base import ChunkConfig
+from workspacex.config import WORKSPACEX_CHUNK_OVERLAP, WORKSPACEX_CHUNK_SIZE, WORKSPACEX_CHUNK_TEXT_SPLITTER, \
+    WORKSPACEX_EMBEDDING_API_BASE_URL, WORKSPACEX_EMBEDDING_API_KEY, WORKSPACEX_EMBEDDING_BATCH_SIZE, \
+    WORKSPACEX_EMBEDDING_CONTEXT_LENGTH, WORKSPACEX_EMBEDDING_DIMENSIONS, WORKSPACEX_EMBEDDING_MODEL, \
+    WORKSPACEX_EMBEDDING_PROVIDER, WORKSPACEX_EMBEDDING_TIMEOUT, WORKSPACEX_ENABLE_HYBRID_SEARCH, \
+    WORKSPACEX_HYBRID_SEARCH_THRESHOLD, WORKSPACEX_HYBRID_SEARCH_TOP_K, WORKSPACEX_VECTOR_DB_PROVIDER, \
+    WORKSPACEX_ENABLE_CHUNKING, WORKSPACEX_ENABLE_EMBEDDING
+from workspacex.embedding.base import EmbeddingsConfig
+from workspacex.vector.factory import VectorDBConfig
+from pydantic import Field, BaseModel
 
 from workspacex.chunk.base import ChunkConfig
 from workspacex.config import WORKSPACEX_CHUNK_OVERLAP, WORKSPACEX_CHUNK_SIZE, WORKSPACEX_CHUNK_TEXT_SPLITTER, \
@@ -32,7 +37,7 @@ class WorkspaceConfig:
         
         self.chunk_config = ChunkConfig(
             enabled=WORKSPACEX_ENABLE_CHUNKING,
-            text_splitter=WORKSPACEX_CHUNK_TEXT_SPLITTER,
+            provider=WORKSPACEX_CHUNK_TEXT_SPLITTER,
             chunk_size=WORKSPACEX_CHUNK_SIZE,
             chunk_overlap=WORKSPACEX_CHUNK_OVERLAP
         )

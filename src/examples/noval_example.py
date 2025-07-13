@@ -1,12 +1,13 @@
-import os
-import sys
+import asyncio
 import json
+import os
+
 from dotenv import load_dotenv
+
 from workspacex.artifact import ArtifactType, HybridSearchQuery, ChunkSearchQuery
 from workspacex.workspace import WorkSpace
-import asyncio
 
-NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval.txt')
+NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval_large.txt')
 """
 noval.txt 内容如下：
 
@@ -40,7 +41,7 @@ async def create_novel_artifact_example() -> None:
     """
     ensure_output_folder(SAVE_CHAPTERS_BASE_FOLDER)
     # Create a workspace
-    ws = WorkSpace(workspace_id="novel_example_workspace_v8", name="Novel Example Workspace", clear_existing=True)
+    ws = WorkSpace(workspace_id="novel_example_workspace_v9", name="Novel Example Workspace", clear_existing=True)
     # Create the novel artifact and save chapters
     artifacts = await ws.create_artifact(
         artifact_id="novel_artifact",
@@ -75,8 +76,8 @@ async def create_novel_artifact_s3_example() -> None:
         },
         'use_ssl': False
     }
-    bucket = 'test-bucket'
-    storage_path = 'novel-example-s3-v2'
+    bucket = 'agentworkspace'
+    storage_path = 'novel_workspace'
     # Ensure bucket exists (create if not)
     import s3fs
     fs = s3fs.S3FileSystem(**s3_kwargs)
@@ -87,12 +88,12 @@ async def create_novel_artifact_s3_example() -> None:
                         bucket=bucket,
                         s3_kwargs=s3_kwargs)
     # Create a workspace using S3Repository
-    ws = WorkSpace(workspace_id="novel_example_workspace_s3",
+    ws = WorkSpace(workspace_id="novel_workspace",
                    name="Novel Example Workspace S3",
                    repository=repo, clear_existing=True)
     json.dump(ws.generate_tree_data(), open('tree_data.json', 'w'), indent=2)
     # Create the novel artifact and store in S3
-    artifacts = await ws.create_artifact(artifact_id="novel_artifact_s3_v4",
+    artifacts = await ws.create_artifact(artifact_id="novel_artifact",
                                          artifact_type=ArtifactType.NOVEL,
                                          novel_file_path=NOVEL_FILE_PATH)
     novel_artifact = artifacts[0]
@@ -101,7 +102,7 @@ async def create_novel_artifact_s3_example() -> None:
     for i, subartifact in enumerate(novel_artifact.sublist[:3]):
         print(f"[S3] Chapter {i+1}: {subartifact.content[:100]}")
 
-    await hybrid_search_chunk_example(ws)
+    # await hybrid_search_chunk_example(ws)
 async def hybrid_search_example(ws: WorkSpace) -> None:
     """
     Example: Hybrid search for a novel artifact.

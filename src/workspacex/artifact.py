@@ -57,6 +57,13 @@ class Chunk(BaseModel):
     def chunk_file_name(self) -> str:
         return f"{self.artifact_id}_chunk_{self.chunk_metadata.chunk_index}.json"
 
+    def pre_n_chunk_file_name(self, pre_n) -> str:
+        return f"{self.artifact_id}_chunk_{self.chunk_metadata.chunk_index - pre_n}.json"
+
+
+    def next_n_chunk_file_name(self, next_n) -> str:
+        return f"{self.artifact_id}_chunk_{self.chunk_metadata.chunk_index + next_n}.json"
+
 class ArtifactStatus(Enum):
     """Artifact status"""
     DRAFT = auto()      # Draft status

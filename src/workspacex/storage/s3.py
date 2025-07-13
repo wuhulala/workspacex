@@ -1,12 +1,15 @@
 import json
-import time
-from workspacex.utils.logger import logger
-from typing import Dict, Any, Optional, Tuple
-import s3fs
-from workspacex.artifact import Artifact, ArtifactType, Chunk
-from .base import BaseRepository
-from workspacex.utils.timeit import timeit
 import mimetypes
+import time
+from typing import Dict, Any, Optional, Tuple
+
+import s3fs
+from tqdm import tqdm
+
+from workspacex.artifact import Artifact, ArtifactType, Chunk
+from workspacex.utils.logger import logger
+from workspacex.utils.timeit import timeit
+from .base import BaseRepository
 
 
 class S3Repository(BaseRepository):
@@ -116,7 +119,7 @@ class S3Repository(BaseRepository):
                       cls=CommonEncoder)
 
     def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content):
-        for sub in artifact.sublist:
+        for sub in tqdm(artifact.sublist, desc="Uploading sub-artifacts"):
             sub_id = sub.artifact_id
             sub_type = sub.artifact_type
             sub_dir = self._full_path(self._sub_dir(artifact_id, sub_id))
@@ -158,7 +161,8 @@ class S3Repository(BaseRepository):
                 return f.read()
         return None
     
-    def get_chunk_window(self, artifact_id: str, parent_id: str, chunk_index: int, pre_n: int, next_n: int) -> Optional[Tuple[list[Chunk], Chunk, list[Chunk]]]:
+    def get_chunk_window(self, artifact_id: str, parent_id: str, chunk_index: int, pre_n: int, next_n: int) \
+            -> Optional[Tuple[Optional[list[Chunk]], Optional[Chunk], Optional[list[Chunk]]]]:
         """
         Get a window of chunks by artifact ID, parent ID, chunk index, pre n, next n
         """
@@ -179,7 +183,7 @@ class S3Repository(BaseRepository):
         for i in range(pre_n):
             if chunk_index - i - 1 < 0:
                 break
-            pre_n_chunk_file_name = f"{artifact_id}_chunk_{chunk_index - i - 1}.json"
+            pre_n_chunk_file_name = chunk.pre_n_chunk_file_name(i + 1)
             pre_n_chunk_file_path = f"{chunk_dir}/{pre_n_chunk_file_name}"
             if self.fs.exists(pre_n_chunk_file_path):
                 with self.fs.open(pre_n_chunk_file_path, "r") as f:
@@ -187,7 +191,7 @@ class S3Repository(BaseRepository):
                     pre_n_chunk = Chunk.model_validate_json(pre_n_chunk_content)
                     pre_n_chunks.append(pre_n_chunk)
         for i in range(next_n):
-            next_n_chunk_file_name = f"{artifact_id}_chunk_{chunk_index + i + 1}.json"
+            next_n_chunk_file_name = chunk.next_n_chunk_file_name(i + 1)
             next_n_chunk_file_path = f"{chunk_dir}/{next_n_chunk_file_name}"
             if self.fs.exists(next_n_chunk_file_path):
                 with self.fs.open(next_n_chunk_file_path, "r") as f:
@@ -201,9 +205,14 @@ class S3Repository(BaseRepository):
         Store chunks in the S3 bucket.
         """
         chunk_dir = self._full_path(self._chunk_dir(artifact.artifact_id, artifact.parent_id))
+        if self.fs.exists(chunk_dir):
+            # 删除 S3 目录下所有内容
+            files = self.fs.glob(f"{chunk_dir}/**")
+            for file in files:
+                self.fs.rm(file, recursive=True)
         if not self.fs.exists(chunk_dir):
             self.fs.mkdirs(chunk_dir, exist_ok=True)
-        for chunk in chunks:
+        for chunk in tqdm(chunks, desc="Uploading chunks"):
             try:
                 file_path = f"{chunk_dir}/{chunk.chunk_file_name}"
                 logger.debug(f"🔍 store_artifact_chunks file_path: {file_path}")

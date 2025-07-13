@@ -1,7 +1,6 @@
+import json
 from abc import ABC, abstractmethod
 from enum import Enum
-import json
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from pydantic import BaseModel
@@ -146,7 +145,7 @@ class BaseRepository(ABC):
         Returns:
             Path to the sub-artifact data file (as string)
         """
-        return f"{self._sub_dir(artifact_id, sub_id)}/{sub_id}.{ext}"
+        return f"{self._sub_dir(artifact_id, sub_id)}/origin.{ext}"
 
     def _artifact_index_path(self, artifact_id: str) -> str:
         """
