@@ -1,5 +1,5 @@
 import os
-from typing import Any, List
+from typing import Any, List, Optional
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.extractor.base import BaseExtractor
 
@@ -11,7 +11,7 @@ class NovalExtractor(BaseExtractor):
     Loads a novel file, splits it by chapters, 
     """
     
-    def extract(self, content: Any) -> list[Artifact]:
+    def extract(self, content: Any) -> Optional[list[Artifact]]:
         """Extract artifacts from content."""
         novel_file_path = content
 
@@ -32,6 +32,9 @@ class NovalExtractor(BaseExtractor):
             )
             artifacts.append(subartifact)
         return artifacts
+
+    async def async_extract(self, content: Any) -> Optional[list[Artifact]]:
+        pass
 
     def _load_and_split_novel(self, novel_file_path: str) -> tuple[List[str], List[str]]:
         """
