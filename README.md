@@ -159,3 +159,14 @@ The server will start on http://localhost:8000. Interactive API docs are availab
 ## ✨ Artifact Method
 
 - `get_metadata_value(key: str) -> Any`：根据 key 获取元数据字段的值，如果不存在则返回 None。
+
+## 事件抽取模块拆分说明
+
+原 `event_extractors.py` 文件已拆分为三个独立文件：
+- `battle_event_extractor.py`：负责战斗事件的抽取
+- `fortune_event_extractor.py`：负责奇遇事件的抽取
+- `dialogue_event_extractor.py`：负责重要对话事件的抽取
+
+主入口 `event_extractors.py` 仅做统一导入。
+
+✨ 这样结构更清晰，便于维护和扩展！
