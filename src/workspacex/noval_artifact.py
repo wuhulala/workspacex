@@ -1,9 +1,12 @@
 
-from pydantic import Field
-from workspacex.artifact import Artifact, ArtifactType
-from workspacex.extractor import noval_extractor
 import uuid
 from typing import Dict, Any, Optional
+
+from pydantic import Field
+
+from workspacex.artifact import Artifact, ArtifactType
+from workspacex.extractor import noval_extractor
+
 
 class NovelArtifact(Artifact):
     """
@@ -39,3 +42,8 @@ class NovelArtifact(Artifact):
             sub_artifact.mark_complete()
             self.add_subartifact(sub_artifact)
         self.mark_complete()
+
+    @property
+    def support_chunking(self):
+        return False
+

@@ -147,6 +147,9 @@ class Artifact(BaseModel):
         self.status = ArtifactStatus.COMPLETE
         self._record_version("Marked as complete")
 
+    def mark_chunkable(self) -> None:
+        self.metadata['chunkable'] = True
+
     def archive(self) -> None:
         """Archive the artifact"""
         self.status = ArtifactStatus.ARCHIVED

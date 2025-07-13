@@ -200,6 +200,23 @@ class S3Repository(BaseRepository):
                     next_n_chunks.append(next_n_chunk)
         return pre_n_chunks, chunk, next_n_chunks
 
+    def get_chunks(self, artifact_id: str, parent_id: str) -> Optional[list[Chunk]]:
+        chunk_dir = self._full_path(self._chunk_dir(artifact_id, parent_id))
+        if not self.fs.exists(chunk_dir):
+            return None
+        chunks = []
+        for chunk_file in self.fs.glob(f"{chunk_dir}/*.json"):
+            try:
+                with self.fs.open(chunk_file, "r") as f:
+                    chunk_content = f.read()
+                    logger.info(f"{chunk_content}")
+                    chunk = Chunk.model_validate_json(chunk_content)
+                    chunks.append(chunk)
+            except Exception as e:
+                logger.error(f"🔍 get_chunks error: {e}")
+                continue
+        return chunks
+
     def store_artifact_chunks(self, artifact: "Artifact", chunks: list["Chunk"]) -> None:
         """
         Store chunks in the S3 bucket.
@@ -207,9 +224,13 @@ class S3Repository(BaseRepository):
         chunk_dir = self._full_path(self._chunk_dir(artifact.artifact_id, artifact.parent_id))
         if self.fs.exists(chunk_dir):
             # 删除 S3 目录下所有内容
-            files = self.fs.glob(f"{chunk_dir}/**")
+            files = self.fs.glob(f"{chunk_dir}/*.json")
             for file in files:
-                self.fs.rm(file, recursive=True)
+                try:
+                    self.fs.rm(file, recursive=True)
+                except FileNotFoundError:
+                    logger.debug(f"🔍 store_artifact_chunks skip missing file: {file}")
+                    pass
         if not self.fs.exists(chunk_dir):
             self.fs.mkdirs(chunk_dir, exist_ok=True)
         for chunk in tqdm(chunks, desc="Uploading chunks"):

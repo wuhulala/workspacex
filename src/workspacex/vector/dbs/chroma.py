@@ -1,15 +1,12 @@
 import time
 import traceback
-
-import chromadb
-from workspacex.utils.logger import logger
-from chromadb import Settings
-from chromadb.utils.batch_utils import create_batches
-
 from typing import Optional
 
-from workspacex.embedding.base import EmbeddingsResult, EmbeddingsResults
-from workspacex.vector.dbs.base import VectorDB
+import chromadb
+from chromadb import Settings
+from chromadb.utils.batch_utils import create_batches
+from tqdm import tqdm
+
 from workspacex.config import (
     CHROMA_DATA_PATH,
     CHROMA_HTTP_HOST,
@@ -21,6 +18,9 @@ from workspacex.config import (
     CHROMA_CLIENT_AUTH_PROVIDER,
     CHROMA_CLIENT_AUTH_CREDENTIALS,
 )
+from workspacex.embedding.base import EmbeddingsResult, EmbeddingsResults
+from workspacex.utils.logger import logger
+from workspacex.vector.dbs.base import VectorDB
 
 
 class ChromaVectorDB(VectorDB):
@@ -259,13 +259,13 @@ class ChromaVectorDB(VectorDB):
         # Convert metadata to dict instead of JSON string
         metadatas = [item.metadata.model_dump() for item in items]
 
-        for batch in create_batches(
+        for batch in tqdm(create_batches(
             api=self.client,
             documents=documents,
             embeddings=embeddings,
             ids=ids,
             metadatas=metadatas,
-        ):
+        ), desc="save embeddings", ):
             collection.add(*batch)
 
     def upsert(self, collection_name: str, items: list[EmbeddingsResult]):

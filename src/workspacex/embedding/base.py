@@ -1,14 +1,13 @@
-from abc import ABC, abstractmethod
-from workspacex.utils.logger import logger
-from typing import List, Optional
 import asyncio
 import time
 import uuid
+from abc import ABC, abstractmethod
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from workspacex.artifact import Artifact, Chunk
-
+from workspacex.utils.logger import logger
 
 
 class EmbeddingsConfig(BaseModel):
@@ -29,6 +28,10 @@ class EmbeddingsMetadata(BaseModel):
     updated_at: int = Field(..., description="Updated at")
     artifact_type: str = Field(..., description="Artifact type")
     parent_id: str = Field(default="", description="Parent ID")
+    chunk_id: Optional[str] = Field(default=None, description="Chunk ID")
+    chunk_index: Optional[int] = Field(default=None, description="Chunk index")
+    chunk_size: Optional[int] = Field(default=None, description="Chunk size")
+    chunk_overlap: Optional[int] = Field(default=None, description="Chunk overlap")
     
     model_config = ConfigDict(extra="allow")
 

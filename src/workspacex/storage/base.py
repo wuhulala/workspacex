@@ -57,7 +57,19 @@ class BaseRepository(ABC):
         Returns:
             List of chunks
         """
-        pass   
+        pass
+
+    @abstractmethod
+    def get_chunks(self, artifact_id: str, parent_id: str) -> Optional[list[Chunk]]:
+        """
+        Get a window of chunks by artifact ID, parent ID, chunk ID, pre n, next n
+        Args:
+            artifact_id: Artifact ID
+            parent_id: Parent ID
+        Returns:
+            List of chunks
+        """
+        pass
 
     @abstractmethod
     def store_artifact_chunks(self, artifact: Any, chunks: list[Chunk]):

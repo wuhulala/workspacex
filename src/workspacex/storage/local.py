@@ -1,5 +1,4 @@
 import json
-import json
 import shutil
 import time
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import Dict, Any, Optional, Tuple
 from tqdm import tqdm
 
 from workspacex.artifact import Artifact, ArtifactType, Chunk
+from workspacex.utils.logger import logger
 from .base import BaseRepository, CommonEncoder
 
 
@@ -218,6 +218,21 @@ class LocalPathRepository(BaseRepository):
                     next_n_chunk = Chunk.model_validate_json(next_n_chunk_content)
                     next_n_chunks.append(next_n_chunk)
         return pre_n_chunks, chunk, next_n_chunks
+
+    def get_chunks(self, artifact_id: str, parent_id: str) -> Optional[list[Chunk]]:
+        chunk_dir = self._full_path(self._chunk_dir(artifact_id, parent_id))
+        if not chunk_dir.exists():
+            return None
+        chunks = []
+        for chunk_file in chunk_dir.glob("*.json"):
+            try:
+                with open(chunk_file, "r", encoding="utf-8") as f:
+                    chunk = Chunk.model_validate_json(f.read())	
+                    chunks.append(chunk)
+            except Exception as e:
+                logger.error(f"🔍 get_chunks error: {e}")
+                continue
+        return chunks
 
     def store_artifact_chunks(self, artifact: "Artifact", chunks: list["Chunk"]) -> None:
         """
