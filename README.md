@@ -1,8 +1,7 @@
 # workspacex
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![DeepWiki](https://img.shields.io/badge/DeepWiki-Explore-blueviolet?logo=wikipedia&logoColor=white)](https://deepwiki.com/wuhulala/workspacex)
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/wuhulala/workspacex)
 
 
 **workspacex** is a Python library for managing AIGC (AI-Generated Content) artifacts. It provides a collaborative workspace environment for handling multiple artifacts with features like version control, update notifications, artifact management, and pluggable storage and embedding backends.
