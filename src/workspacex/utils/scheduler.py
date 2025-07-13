@@ -90,7 +90,7 @@ class BaseTaskExecutor:
         """
         while True:
             if len(self.running_tasks) >= self.max_concurrent_tasks:
-                await asyncio.sleep(1)
+                await asyncio.sleep(10)
                 logger.info(f"[TaskExecutor#{self.name}]⏳ Waiting, running tasks: {len(self.running_tasks)}")
                 continue
             task = await self.task_queue.get()
