@@ -121,7 +121,7 @@ class WorkSpace(BaseModel):
             },
             'use_ssl': False
         }
-        bucket = os.getenv('MINIO_BUCKET')
+        bucket = os.getenv('MINIO_WORKSPACE_BUCKET')
 
         # Ensure bucket exists (create if not)
         import s3fs

@@ -3,10 +3,9 @@ import logging
 import coloredlogs
 
 logger = logging.getLogger("workspacex")
-logger.setLevel(logging.DEBUG)
 
 coloredlogs.install(
-    level='DEBUG',
+    level='INFO',
     logger=logger,
     fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level_styles={

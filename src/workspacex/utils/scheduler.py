@@ -1,7 +1,8 @@
-from abc import abstractmethod
 import asyncio
-from workspacex.utils.logger import logger
+import traceback
+from abc import abstractmethod
 
+from workspacex.utils.logger import logger
 
 
 class BaseTask:
@@ -116,7 +117,7 @@ class BaseTaskExecutor:
                     # 触发异常抛出（如果有的话）
                     t.result()
                 except Exception as e:
-                    logger.error(f"[TaskExecutor]🚨 Task#{t.get_name()} failed: {e}")
+                    logger.error(f"[TaskExecutor]🚨 Task#{t.get_name()} failed: {e} \n trace is {traceback.print_exc()}")
                     task.status = "failed"
                 else:
                     task.status = task.get_status_info()
