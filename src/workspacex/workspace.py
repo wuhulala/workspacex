@@ -414,8 +414,10 @@ class WorkSpace(BaseModel):
         if self.workspace_config.chunk_config.enabled and artifact.support_chunking:
             chunks = await self._chunk_artifact(artifact)
             await self._rebuild_artifact_embedding(artifact, chunks)
+            await self._rebuild_artifact_fulltext(artifact, chunks)
         else:
             await self._rebuild_artifact_embedding(artifact)
+            await self._rebuild_artifact_fulltext(artifact)
 
     async def _chunk_artifact(self, artifact: Artifact) -> Optional[list[Chunk]]:
         """Chunk artifact"""
@@ -508,10 +510,10 @@ class WorkSpace(BaseModel):
                         "chunk_id": chunk.chunk_id,
                         "metadata": {
                             "artifact_type": artifact.artifact_type.value,
-                            "artifact_name": artifact.name,
-                            "chunk_index": chunk.chunk_index,
-                            "chunk_size": len(chunk.content),
-                            **chunk.metadata
+                            "chunk_index": chunk.chunk_metadata.chunk_index,
+                            "chunk_size": chunk.chunk_metadata.chunk_size,
+                            "chunk_overlap": chunk.chunk_metadata.chunk_overlap,
+                            **chunk.chunk_metadata.model_dump()
                         },
                         "created_at": artifact.created_at,
                         "updated_at": artifact.updated_at
@@ -519,7 +521,7 @@ class WorkSpace(BaseModel):
                     documents.append(doc)
             else:
                 # Store the entire artifact as a single document
-                content = artifact.get_embedding_text() or artifact.get_content_text()
+                content = artifact.get_embedding_text()
                 if content:
                     doc = {
                         "id": artifact.artifact_id,
@@ -527,7 +529,6 @@ class WorkSpace(BaseModel):
                         "artifact_id": artifact.artifact_id,
                         "metadata": {
                             "artifact_type": artifact.artifact_type.value,
-                            "artifact_name": artifact.name,
                             "content_size": len(content),
                             **artifact.metadata
                         },
@@ -546,7 +547,7 @@ class WorkSpace(BaseModel):
             logger.error(f"📦[FULLTEXT]❌ store_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
             raise
 
-    async def store_artifact_fulltext(self, artifact: Artifact, chunks: List[Chunk] = None) -> None:
+    async def _rebuild_artifact_fulltext(self, artifact: Artifact, chunks: List[Chunk] = None) -> None:
         """Store artifact content in full-text search database.
         
         This is a public method that can be called independently to store artifacts
@@ -563,7 +564,10 @@ class WorkSpace(BaseModel):
         # Delete existing full-text data for this artifact
         self.fulltext_db.delete(self.workspace_id, filter={"artifact_id": artifact.artifact_id})
         logger.info(f"📦[FULLTEXT]✅ delete_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} finished")
-        
+        chunkable = artifact.get_metadata_value("chunkable")
+        if chunkable:
+            if not chunks:
+                chunks = await self._load_artifact_chunks(artifact)
         await self._store_artifact_fulltext(artifact, chunks)
 
     async def delete_artifact_fulltext(self, artifact_id: str) -> None:
@@ -582,7 +586,7 @@ class WorkSpace(BaseModel):
             logger.error(f"📦[FULLTEXT]❌ delete_fulltext for artifact_id: {artifact_id} failed: {e}")
             raise
 
-    async def rebuild_fulltext(self, artifact: Artifact = None) -> None:
+    async def rebuild_fulltext(self) -> None:
         """Rebuild full-text search index for all artifacts or a specific artifact.
         
         Args:
@@ -591,22 +595,22 @@ class WorkSpace(BaseModel):
         if not self.fulltext_db:
             logger.warning("📦[FULLTEXT]⚠️ fulltext_db is not enabled")
             return
-            
+
         try:
-            if artifact:
-                # Rebuild for specific artifact
-                logger.info(f"📦[FULLTEXT]🔄 rebuilding fulltext for artifact: {artifact.artifact_id}")
-                await self.store_artifact_fulltext(artifact)
-            else:
-                # Rebuild for all artifacts
-                logger.info("📦[FULLTEXT]🔄 rebuilding fulltext for all artifacts")
-                for artifact in self.artifacts:
-                    await self.store_artifact_fulltext(artifact)
-                logger.info("📦[FULLTEXT]✅ rebuild_fulltext completed for all artifacts")
-                
+            # Rebuild for all artifacts
+            logger.info("📦[FULLTEXT]🔄 rebuilding fulltext for all artifacts")
+            for artifact in self.artifacts:
+                await self.rebuild_artifact_fulltext(artifact)
+            logger.info("📦[FULLTEXT]✅ rebuild_fulltext completed for all artifacts")
+
         except Exception as e:
             logger.error(f"📦[FULLTEXT]❌ rebuild_fulltext failed: {e}")
             raise
+
+    async def rebuild_artifact_fulltext(self, artifact: Artifact):
+        await self._rebuild_artifact_fulltext(artifact)
+        for sub_artifact in tqdm(artifact.sublist, f"rebuild_artifact_fulltext_sublist#{artifact.artifact_id}"):
+            await self._rebuild_artifact_fulltext(sub_artifact)
 
     #########################################################
     # Artifact Retrieval
@@ -797,6 +801,49 @@ class WorkSpace(BaseModel):
 
         return results
 
+    async def search_fulltext(self, query: str, limit: int = 10, filter_types: Optional[List[ArtifactType]] = None) -> \
+    Optional[list[FulltextSearchResult]]:
+        """Search artifacts using full-text search only.
+
+        Args:
+            query (str): Search query
+            limit (int): Maximum number of results
+            filter_types (Optional[List[ArtifactType]]): Filter by artifact types
+
+        Returns:
+            Optional[list[FulltextSearchResult]]: Search results
+        """
+        if not self.fulltext_db:
+            logger.warning("🔍 search_fulltext fulltext_db is not enabled")
+            return None
+
+        try:
+            # Build filter for artifact types if specified
+            filter_dict = {}
+            if filter_types:
+                filter_dict["metadata.artifact_type"] = [t.value for t in filter_types]
+
+            # Perform full-text search
+            search_results = await asyncio.to_thread(
+                self.fulltext_db.search,
+                self.workspace_id,
+                query,
+                filter=filter_dict,
+                limit=limit,
+                offset=0
+            )
+
+            if not search_results:
+                logger.info("🔍 search_fulltext no results found")
+                return None
+
+            logger.info(f"🔍 search_fulltext found {len(search_results.results)} results")
+            return search_results.results
+
+        except Exception as e:
+            logger.error(f"🔍 search_fulltext failed: {e}")
+            return None
+
     async def _fulltext_search_artifacts(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
         """Search artifacts using full-text search.
         
@@ -853,47 +900,6 @@ class WorkSpace(BaseModel):
             logger.error(f"🔍 _fulltext_search_artifacts failed: {e}")
             return None
 
-    async def search_fulltext(self, query: str, limit: int = 10, filter_types: Optional[List[ArtifactType]] = None) -> Optional[list[FulltextSearchResult]]:
-        """Search artifacts using full-text search only.
-        
-        Args:
-            query (str): Search query
-            limit (int): Maximum number of results
-            filter_types (Optional[List[ArtifactType]]): Filter by artifact types
-            
-        Returns:
-            Optional[list[FulltextSearchResult]]: Search results
-        """
-        if not self.fulltext_db:
-            logger.warning("🔍 search_fulltext fulltext_db is not enabled")
-            return None
-            
-        try:
-            # Build filter for artifact types if specified
-            filter_dict = {}
-            if filter_types:
-                filter_dict["metadata.artifact_type"] = [t.value for t in filter_types]
-            
-            # Perform full-text search
-            search_results = await asyncio.to_thread(
-                self.fulltext_db.search,
-                self.workspace_id,
-                query,
-                filter=filter_dict,
-                limit=limit,
-                offset=0
-            )
-            
-            if not search_results:
-                logger.info("🔍 search_fulltext no results found")
-                return None
-            
-            logger.info(f"🔍 search_fulltext found {len(search_results.results)} results")
-            return search_results.results
-            
-        except Exception as e:
-            logger.error(f"🔍 search_fulltext failed: {e}")
-            return None
     
     #########################################################
     # Observer Management

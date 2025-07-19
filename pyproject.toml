@@ -20,7 +20,7 @@ dependencies = [
     "langchain-text-splitters (>=0.3.8,<0.4.0)",
     "numpy (>=1.26.4,<2.0)",
 	"langchain_core(>=0.3.66,<0.4.0)",
-	"langfuse(>=3.1.3,<4.0.0)"
+	"langfuse(>=3.1.3,<4.0.0)",
 ]
 requires-python = ">=3.10,<=3.13"
 
@@ -37,6 +37,14 @@ reranker-server = [
 ]
 chunker-sentence = [
     "sentence_transformers>=5.0.0"
+]
+all = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.1",
+    "torch>=2.2.0",
+    "transformers>=4.51.0",
+    "sentence_transformers>=5.0.0",
+    "elasticsearch==8.17.2"
 ]
 
 [build-system]

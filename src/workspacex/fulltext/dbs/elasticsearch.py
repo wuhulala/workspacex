@@ -1,8 +1,8 @@
 from typing import Optional, List, Dict, Any
 
+from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import bulk
 
-from elasticsearch import Elasticsearch, NotFoundError
 from workspacex.fulltext.dbs.base import FulltextDB, FulltextSearchResult, FulltextSearchResults
 from workspacex.utils.logger import logger
 
@@ -23,7 +23,7 @@ class ElasticsearchFulltextDB(FulltextDB):
                 - number_of_replicas: Number of replicas for indices
         """
         self.config = config
-        self.hosts = config.get("hosts", ["localhost:9200"])
+        self.hosts = config.get("hosts", ["http://localhost:9200"])
         self.username = config.get("username")
         self.password = config.get("password")
         self.index_prefix = config.get("index_prefix", "workspacex")
@@ -31,21 +31,34 @@ class ElasticsearchFulltextDB(FulltextDB):
         self.number_of_replicas = config.get("number_of_replicas", 0)
         
         # Initialize Elasticsearch client
-        if self.username and self.password:
-            self.es = Elasticsearch(
-                hosts=self.hosts,
-                basic_auth=(self.username, self.password),
-                verify_certs=False,
-                ssl_show_warn=False
-            )
-        else:
-            self.es = Elasticsearch(hosts=self.hosts)
+        try:
+            if self.username and self.password:
+                self.es = Elasticsearch(
+                    hosts=self.hosts,
+                    basic_auth=(self.username, self.password),
+                    verify_certs=False,
+                    ssl_show_warn=False,
+                    max_retries=3,
+                    retry_on_timeout=True
+                )
+            else:
+                self.es = Elasticsearch(
+                    self.hosts,
+                    max_retries=3,
+                    retry_on_timeout=True
+                )
+
+            # Test connection
+            if not self.es.ping():
+                raise ConnectionError(f"Failed to connect to Elasticsearch at {self.hosts}: info is {self.es.info()}")
+                
+            logger.info(f"✅ Connected to Elasticsearch at {self.hosts}")
             
-        # Test connection
-        if not self.es.ping():
-            raise ConnectionError("Failed to connect to Elasticsearch")
-            
-        logger.info(f"Connected to Elasticsearch at {self.hosts}")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Elasticsearch client: {e}")
+            logger.error(f"   Hosts: {self.hosts}")
+            logger.error(f"   Username: {self.username}")
+            raise ConnectionError(f"Failed to connect to Elasticsearch: {e}")
     
     def _get_index_name(self, index_name: str) -> str:
         """Get the full index name with prefix.
@@ -113,7 +126,31 @@ class ElasticsearchFulltextDB(FulltextDB):
                         },
                         "metadata": {
                             "type": "object",
-                            "enabled": True
+                            "properties": {
+                                "artifact_type": {
+                                    "type": "keyword"
+                                },
+                                "description": {
+                                    "type": "text",
+                                    "analyzer": "standard"
+                                },
+                                "filename": {
+                                    "type": "keyword"
+                                },
+                                "chunk_index": {
+                                    "type": "long"
+                                },
+                                "chunk_size": {
+                                    "type": "long"
+                                },
+                                "chunk_overlap": {
+                                    "type": "long"
+                                },
+                                "content_size": {
+                                    "type": "long"
+                                }
+                            },
+                            "dynamic": True
                         },
                         "created_at": {
                             "type": "date"
@@ -166,7 +203,7 @@ class ElasticsearchFulltextDB(FulltextDB):
                             {
                                 "multi_match": {
                                     "query": query,
-                                    "fields": ["content^2", "metadata.*"],
+                                    "fields": ["content^2", "metadata.artifact_type", "metadata.description", "metadata.filename"],
                                     "type": "best_fields",
                                     "fuzziness": "AUTO"
                                 }

@@ -118,10 +118,19 @@ class WorkspaceConfig:
             self.hybrid_search_config = hybrid_search_config
 
         if fulltext_db_config is None:
+            # Parse Elasticsearch hosts and remove http:// prefix if present
+            hosts = ELASTICSEARCH_HOSTS.split(",") if "," in ELASTICSEARCH_HOSTS else ELASTICSEARCH_HOSTS
+            cleaned_hosts = []
+            if isinstance(hosts,list) and len(hosts) > 1:
+                for host in hosts:
+                    cleaned_hosts.append(host)
+            else:
+                cleaned_hosts = hosts
+            
             self.fulltext_db_config = FulltextDBConfig(
                 provider=WORKSPACEX_FULLTEXT_DB_PROVIDER,
                 config={
-                    "hosts": ELASTICSEARCH_HOSTS.split(",") if "," in ELASTICSEARCH_HOSTS else [ELASTICSEARCH_HOSTS],
+                    "hosts": cleaned_hosts,
                     "username": ELASTICSEARCH_USERNAME if ELASTICSEARCH_USERNAME else None,
                     "password": ELASTICSEARCH_PASSWORD if ELASTICSEARCH_PASSWORD else None,
                     "index_prefix": ELASTICSEARCH_INDEX_PREFIX,
