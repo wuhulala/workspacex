@@ -9,8 +9,11 @@ from workspacex.config import WORKSPACEX_CHUNK_OVERLAP, WORKSPACEX_CHUNK_SIZE, W
     WORKSPACEX_EMBEDDING_CONTEXT_LENGTH, WORKSPACEX_EMBEDDING_DIMENSIONS, WORKSPACEX_EMBEDDING_MODEL, \
     WORKSPACEX_EMBEDDING_PROVIDER, WORKSPACEX_EMBEDDING_TIMEOUT, WORKSPACEX_ENABLE_HYBRID_SEARCH, \
     WORKSPACEX_HYBRID_SEARCH_THRESHOLD, WORKSPACEX_HYBRID_SEARCH_TOP_K, WORKSPACEX_VECTOR_DB_PROVIDER, \
-    WORKSPACEX_ENABLE_CHUNKING, WORKSPACEX_ENABLE_EMBEDDING
+    WORKSPACEX_ENABLE_CHUNKING, WORKSPACEX_ENABLE_EMBEDDING, WORKSPACEX_FULLTEXT_DB_PROVIDER, ELASTICSEARCH_HOSTS, \
+    ELASTICSEARCH_USERNAME, ELASTICSEARCH_PASSWORD, \
+    ELASTICSEARCH_INDEX_PREFIX, ELASTICSEARCH_NUMBER_OF_SHARDS, ELASTICSEARCH_NUMBER_OF_REPLICAS
 from workspacex.embedding.base import EmbeddingsConfig
+from workspacex.fulltext.factory import FulltextDBConfig
 from workspacex.vector.factory import VectorDBConfig
 
 
@@ -41,11 +44,13 @@ class WorkspaceConfig:
     chunk_config: ChunkConfig = Field(default=None, description="Chunk configuration")
     embedding_config: EmbeddingsConfig = Field(default=None, description="Embedding configuration")
     vector_db_config: VectorDBConfig = Field(default=None, description="Vector database configuration")
+    fulltext_db_config: FulltextDBConfig = Field(default=None, description="Full-text database configuration")
 
     def __init__(self, chunk_config: ChunkConfig = None
                  , embedding_config: EmbeddingsConfig = None
                  , vector_db_config: VectorDBConfig = None
                  , hybrid_search_config: HybridSearchConfig = None
+                 , fulltext_db_config: FulltextDBConfig = None
                  ):
         if chunk_config is None:
             self.chunk_config = ChunkConfig(
@@ -112,13 +117,29 @@ class WorkspaceConfig:
         else:
             self.hybrid_search_config = hybrid_search_config
 
+        if fulltext_db_config is None:
+            self.fulltext_db_config = FulltextDBConfig(
+                provider=WORKSPACEX_FULLTEXT_DB_PROVIDER,
+                config={
+                    "hosts": ELASTICSEARCH_HOSTS.split(",") if "," in ELASTICSEARCH_HOSTS else [ELASTICSEARCH_HOSTS],
+                    "username": ELASTICSEARCH_USERNAME if ELASTICSEARCH_USERNAME else None,
+                    "password": ELASTICSEARCH_PASSWORD if ELASTICSEARCH_PASSWORD else None,
+                    "index_prefix": ELASTICSEARCH_INDEX_PREFIX,
+                    "number_of_shards": ELASTICSEARCH_NUMBER_OF_SHARDS,
+                    "number_of_replicas": ELASTICSEARCH_NUMBER_OF_REPLICAS
+                }
+            )
+        else:
+            self.fulltext_db_config = fulltext_db_config
+
     @classmethod
     def from_config(cls, config: dict):
         return cls(
             chunk_config=ChunkConfig.from_config(config.get("chunk_config")) if config else None,
             embedding_config=EmbeddingsConfig.from_config(config.get("embedding_config")) if config else None,
             vector_db_config=VectorDBConfig.from_config(config.get("vector_db_config")) if config else None,
-            hybrid_search_config=HybridSearchConfig.from_config(config.get("hybrid_search_config")) if config else None
+            hybrid_search_config=HybridSearchConfig.from_config(config.get("hybrid_search_config")) if config else None,
+            fulltext_db_config=FulltextDBConfig.from_config(config.get("fulltext_db_config")) if config else None
         )
 
     def to_dict(self):
@@ -126,5 +147,6 @@ class WorkspaceConfig:
             "chunk_config": self.chunk_config.model_dump(),
             "embedding_config": self.embedding_config.model_dump(),
             "vector_db_config": self.vector_db_config.model_dump(),
-            "hybrid_search_config": self.hybrid_search_config.model_dump()
+            "hybrid_search_config": self.hybrid_search_config.model_dump(),
+            "fulltext_db_config": self.fulltext_db_config.model_dump()
         }
