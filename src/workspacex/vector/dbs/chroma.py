@@ -7,17 +7,6 @@ from chromadb import Settings
 from chromadb.utils.batch_utils import create_batches
 from tqdm import tqdm
 
-from workspacex.config import (
-    CHROMA_DATA_PATH,
-    CHROMA_HTTP_HOST,
-    CHROMA_HTTP_PORT,
-    CHROMA_HTTP_HEADERS,
-    CHROMA_HTTP_SSL,
-    CHROMA_TENANT,
-    CHROMA_DATABASE,
-    CHROMA_CLIENT_AUTH_PROVIDER,
-    CHROMA_CLIENT_AUTH_CREDENTIALS,
-)
 from workspacex.embedding.base import EmbeddingsResult, EmbeddingsResults
 from workspacex.utils.logger import logger
 from workspacex.vector.dbs.base import VectorDB
@@ -25,34 +14,45 @@ from workspacex.vector.dbs.base import VectorDB
 
 class ChromaVectorDB(VectorDB):
     """ChromaDB implementation of the VectorDB interface."""
-    def __init__(self):
+    def __init__(self, config: dict = None):
+        """
+        Initialize ChromaDB client with configuration.
+        
+        Args:
+            config (dict): Configuration dictionary containing ChromaDB settings
+        """
+        if config is None:
+            config = {}
+            
+        # Default settings
         settings_dict = {
-            "allow_reset": True,
-            "anonymized_telemetry": False,
+            "allow_reset": config.get("allow_reset", True),
+            "anonymized_telemetry": config.get("anonymized_telemetry", False),
         }
-        if CHROMA_CLIENT_AUTH_PROVIDER is not None:
-            settings_dict["chroma_client_auth_provider"] = CHROMA_CLIENT_AUTH_PROVIDER
-        if CHROMA_CLIENT_AUTH_CREDENTIALS is not None:
-            settings_dict["chroma_client_auth_credentials"] = (
-                CHROMA_CLIENT_AUTH_CREDENTIALS
-            )
+        
+        # Add auth settings if provided
+        if config.get("chroma_client_auth_provider") is not None:
+            settings_dict["chroma_client_auth_provider"] = config["chroma_client_auth_provider"]
+        if config.get("chroma_client_auth_credentials") is not None:
+            settings_dict["chroma_client_auth_credentials"] = config["chroma_client_auth_credentials"]
 
-        if CHROMA_HTTP_HOST != "":
+        # Use HTTP client if host is specified, otherwise use persistent client
+        if config.get("http_host"):
             self.client = chromadb.HttpClient(
-                host=CHROMA_HTTP_HOST,
-                port=CHROMA_HTTP_PORT,
-                headers=CHROMA_HTTP_HEADERS,
-                ssl=CHROMA_HTTP_SSL,
-                tenant=CHROMA_TENANT,
-                database=CHROMA_DATABASE,
+                host=config["http_host"],
+                port=config.get("http_port", 8000),
+                headers=config.get("http_headers", {}),
+                ssl=config.get("http_ssl", False),
+                tenant=config.get("tenant"),
+                database=config.get("database"),
                 settings=Settings(**settings_dict),
             )
         else:
             self.client = chromadb.PersistentClient(
-                path=CHROMA_DATA_PATH,
+                path=config.get("data_path", "./chroma_db"),
                 settings=Settings(**settings_dict),
-                tenant=CHROMA_TENANT,
-                database=CHROMA_DATABASE,
+                tenant=config.get("tenant"),
+                database=config.get("database"),
             )
 
     def has_collection(self, collection_name: str) -> bool:

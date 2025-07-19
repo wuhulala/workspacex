@@ -20,6 +20,22 @@ class EmbeddingsConfig(BaseModel):
     dimensions: int = 1536
     batch_size: int = 100
     timeout: int = 60
+    
+    @classmethod
+    def from_config(cls, config: dict):
+        if not config:
+            return None
+        return cls(
+            enabled=config.get("enabled", False),
+            provider=config.get("provider", "openai"),
+            api_key=config.get("api_key", ""),
+            model_name=config.get("model_name", "text-embedding-3-small"),
+            base_url=config.get("base_url", "https://api.openai.com/v1"),
+            context_length=config.get("context_length", 8191),
+            dimensions=config.get("dimensions", 1536),
+            batch_size=config.get("batch_size", 100),
+            timeout=config.get("timeout", 60)
+        )
 
 class EmbeddingsMetadata(BaseModel):
     artifact_id: str = Field(..., description="Artifact ID")

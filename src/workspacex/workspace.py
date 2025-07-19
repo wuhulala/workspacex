@@ -53,14 +53,18 @@ class WorkSpace(BaseModel):
             observers: Optional[List[WorkspaceObserver]] = None,
             use_default_observer: bool = True,
             clear_existing: bool = False,
-            repository: Optional[BaseRepository] = None
+            repository: Optional[BaseRepository] = None,
+            **kwargs
     ):
         super().__init__()
         self.workspace_id = workspace_id or str(uuid.uuid4())
         self.name = name or f"Workspace-{self.workspace_id[:8]}"
         self.created_at = datetime.now().isoformat()
         self.updated_at = self.created_at
-        self.workspace_config = WorkspaceConfig()
+        if not kwargs.get("config") and not isinstance(kwargs.get("config"), WorkspaceConfig):
+            self.workspace_config = WorkspaceConfig()
+        else:
+            self.workspace_config = kwargs["config"]
 
         # Initialize repository first
         if repository:
@@ -108,7 +112,8 @@ class WorkSpace(BaseModel):
     def from_s3_storages(cls, workspace_id: Optional[str] = None,
                          name: Optional[str] = None,
                          storage_path: Optional[str] = None,
-                         use_ssl=False
+                         use_ssl=False,
+                         **kwargs
                          ):
         from workspacex.storage.s3 import S3Repository
 
@@ -137,7 +142,8 @@ class WorkSpace(BaseModel):
         # Create a workspace using S3Repository
         return cls(workspace_id=workspace_id,
                    name=name,
-                   repository=repo)
+                   repository=repo, **kwargs
+                   )
 
     @classmethod
     def from_local_storages(cls, workspace_id: Optional[str] = None,
@@ -145,6 +151,8 @@ class WorkSpace(BaseModel):
                             storage_path: Optional[str] = None,
                             observers: Optional[List[WorkspaceObserver]] = None,
                             use_default_observer: bool = True
+                            , **kwargs
+
                             ) -> "WorkSpace":
         """
         Create a workspace instance from local storage
@@ -165,7 +173,8 @@ class WorkSpace(BaseModel):
             storage_path=storage_path,
             observers=observers,
             use_default_observer=use_default_observer,
-            clear_existing=False  # Always try to load existing data
+            clear_existing=False,  # Always try to load existing data
+            **kwargs
         )
         return workspace
 

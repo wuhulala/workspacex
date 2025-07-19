@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import uuid
 from typing import List
 
 from pydantic import BaseModel, Field
@@ -15,6 +14,20 @@ class ChunkConfig(BaseModel):
     chunk_separator: str = Field(default="\n", description="Chunk separator")
     chunk_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", description="Chunk model")
     tokens_per_chunk: int = Field(default=256, description="Tokens per chunk")
+    
+    @classmethod
+    def from_config(cls, config: dict):
+        if not config:
+            return None
+        return cls(
+            enabled=config.get("enabled", False),
+            provider=config.get("provider", "character"),
+            chunk_size=config.get("chunk_size", 1000),
+            chunk_overlap=config.get("chunk_overlap", 100),
+            chunk_separator=config.get("chunk_separator", "\n"),
+            chunk_model=config.get("chunk_model", "sentence-transformers/all-MiniLM-L6-v2"),
+            tokens_per_chunk=config.get("tokens_per_chunk", 256)
+        )
 
 class Chunker(ABC):
     """Chunk service interface"""
