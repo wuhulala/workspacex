@@ -132,7 +132,8 @@ async def rebuild_novel_workspace_full_text_example() -> None:
                    name="Novel Example Workspace S3",
                    repository=repo)
 
-    # await ws.rebuild_fulltext()
+    ws.fulltext_db.recreate_index("test")
+    await ws.rebuild_fulltext()
     results = await ws.search_fulltext("叶凡")
     for result in results:
         print(result)

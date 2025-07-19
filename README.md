@@ -15,6 +15,7 @@
 - **Storage Backends**: Local file system and S3-compatible storage (via `s3fs`)
 - **Embedding Backends**: OpenAI-compatible and Ollama embedding support
 - **Vector Search**: Hybrid search combining semantic and keyword-based search
+- **Full-Text Search**: Elasticsearch-based full-text search with Chinese analyzer support
 - **Reranking**: Local reranking using Qwen3-Reranker models
 - **HTTP Service**: FastAPI-based reranking service
 
@@ -102,7 +103,7 @@ For a complete performance comparison demo, see `src/examples/parallel_processin
 
 ### More Examples
 
-For more detailed examples on features like reranking, storage/embedding backends, and hybrid search, please refer to the scripts in the `src/examples/` directory.
+For more detailed examples on features like reranking, storage/embedding backends, hybrid search, and Chinese full-text search, please refer to the scripts in the `src/examples/` directory.
 
 To run an example:
 ```bash

@@ -21,6 +21,7 @@ class ElasticsearchFulltextDB(FulltextDB):
                 - index_prefix: Prefix for index names
                 - number_of_shards: Number of shards for indices
                 - number_of_replicas: Number of replicas for indices
+                - use_chinese_analyzer: Whether to use Chinese analyzer (ik_max_word/ik_smart)
         """
         self.config = config
         self.hosts = config.get("hosts", ["http://localhost:9200"])
@@ -29,6 +30,7 @@ class ElasticsearchFulltextDB(FulltextDB):
         self.index_prefix = config.get("index_prefix", "workspacex")
         self.number_of_shards = config.get("number_of_shards", 1)
         self.number_of_replicas = config.get("number_of_replicas", 0)
+        self.use_chinese_analyzer = config.get("use_chinese_analyzer", True)
         
         # Initialize Elasticsearch client
         try:
@@ -109,14 +111,28 @@ class ElasticsearchFulltextDB(FulltextDB):
         full_index_name = self._get_index_name(index_name)
         
         if not self.es.indices.exists(index=full_index_name):
+            # Choose analyzer based on configuration
+            if self.use_chinese_analyzer:
+                content_analyzer = "ik_max_word"
+                content_search_analyzer = "ik_smart"
+                description_analyzer = "ik_max_word"
+                description_search_analyzer = "ik_smart"
+                logger.info(f"🔤 Using Chinese analyzer (ik_max_word/ik_smart) for index: {full_index_name}")
+            else:
+                content_analyzer = "standard"
+                content_search_analyzer = "standard"
+                description_analyzer = "standard"
+                description_search_analyzer = "standard"
+                logger.info(f"🔤 Using standard analyzer for index: {full_index_name}")
+            
             # Define index mapping
             mapping = {
                 "mappings": {
                     "properties": {
                         "content": {
                             "type": "text",
-                            "analyzer": "standard",
-                            "search_analyzer": "standard"
+                            "analyzer": content_analyzer,
+                            "search_analyzer": content_search_analyzer
                         },
                         "artifact_id": {
                             "type": "keyword"
@@ -132,7 +148,8 @@ class ElasticsearchFulltextDB(FulltextDB):
                                 },
                                 "description": {
                                     "type": "text",
-                                    "analyzer": "standard"
+                                    "analyzer": description_analyzer,
+                                    "search_analyzer": description_search_analyzer
                                 },
                                 "filename": {
                                     "type": "keyword"
@@ -167,7 +184,31 @@ class ElasticsearchFulltextDB(FulltextDB):
             }
             
             self.es.indices.create(index=full_index_name, body=mapping)
-            logger.info(f"Created index: {full_index_name}")
+            logger.info(f"✅ Created index: {full_index_name}")
+    
+    def recreate_index(self, index_name: str):
+        """Recreate index with current analyzer configuration.
+        
+        This method deletes the existing index and creates a new one with the current
+        analyzer settings. Use this when you want to change analyzer configuration.
+        
+        Args:
+            index_name (str): Name of the index to recreate
+        """
+        try:
+            full_index_name = self._get_index_name(index_name)
+            
+            # Delete existing index if it exists
+            if self.es.indices.exists(index=full_index_name):
+                self.es.indices.delete(index=full_index_name)
+                logger.info(f"🗑️ Deleted existing index: {full_index_name}")
+            
+            # Create new index with current configuration
+            self._create_index_if_not_exists(index_name)
+            logger.info(f"🔄 Recreated index: {full_index_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error recreating index {index_name}: {e}")
     
     def search(
         self, 

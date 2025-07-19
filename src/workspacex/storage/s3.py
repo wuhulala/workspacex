@@ -209,7 +209,7 @@ class S3Repository(BaseRepository):
             try:
                 with self.fs.open(chunk_file, "r") as f:
                     chunk_content = f.read()
-                    logger.info(f"{chunk_content}")
+                    logger.debug(f"{chunk_content}")
                     chunk = Chunk.model_validate_json(chunk_content)
                     chunks.append(chunk)
             except Exception as e:
