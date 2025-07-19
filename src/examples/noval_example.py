@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from workspacex.artifact import ArtifactType, HybridSearchQuery, ChunkSearchQuery
 from workspacex.workspace import WorkSpace
 
-NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval.txt')
+NOVEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'noval_large.txt')
 """
 noval.txt 内容如下：
 
