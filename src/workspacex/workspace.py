@@ -250,7 +250,7 @@ class WorkSpace(BaseModel):
             List of created artifact objects
         """
         # Check if artifact ID already exists
-        existing_artifact = self.get_artifact(artifact.artifact_id)
+        existing_artifact = self._get_artifact(artifact.artifact_id)
         logger.info(f"🔍 add_artifact {artifact.artifact_id} {existing_artifact}")
         if existing_artifact:
             raise ValueError(f"Artifact with ID {artifact.artifact_id} already exists")
@@ -284,7 +284,7 @@ class WorkSpace(BaseModel):
         Returns:
             Updated artifact, or None if it doesn't exist
         """
-        artifact = self.get_artifact(artifact_id)
+        artifact = self._get_artifact(artifact_id)
         if artifact:
             artifact.update_content(content, description)
 
@@ -305,7 +305,7 @@ class WorkSpace(BaseModel):
         Update artifact metadata
         """
         if artifact.parent_id:
-            parent_artifact = self.get_artifact(artifact.parent_id)
+            parent_artifact = self._get_artifact(artifact.parent_id)
             if parent_artifact:
                 for sub_artifact in parent_artifact.sublist:
                     if sub_artifact.artifact_id == artifact.artifact_id:
@@ -503,12 +503,19 @@ class WorkSpace(BaseModel):
                         return sub_artifact
                 return None
 
+        return self._get_artifact(artifact_id)
+
+    def _get_artifact(self, artifact_id: str) -> Optional[Artifact]:
         for artifact in self.artifacts:
             if artifact.artifact_id == artifact_id:
                 return artifact
+            if artifact.sublist:
+                for sub_artifact in artifact.sublist:
+                    if sub_artifact.artifact_id == artifact_id:
+                        return sub_artifact
         return None
     
-    def get_file_content_by_artifact_id(self, artifact_id: str, parent_id: str = None) -> str:
+    def get_file_content_by_artifact_id(self, artifact_id: str, parent_id: str = None) -> Optional[str]:
         """
         Get concatenated content of all artifacts with the same filename.
         
@@ -518,7 +525,10 @@ class WorkSpace(BaseModel):
         Returns:
             Raw unescaped concatenated content of all matching artifacts
         """
-        return self.repository.get_subaritfact_content(artifact_id, parent_id)
+        artifact = self._get_artifact(artifact_id)
+        if not artifact:
+            return None
+        return self.repository.get_subaritfact_content(artifact.artifact_id, artifact.parent_id)
     
     #########################################################
     # Hybrid Search
