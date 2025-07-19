@@ -71,6 +71,21 @@ WORKSPACEX_HYBRID_SEARCH_THRESHOLD = os.environ.get("WORKSPACEX_HYBRID_SEARCH_TH
 
 
 ####################################
+# Config for Full-text Search
+####################################
+WORKSPACEX_ENABLE_FULLTEXT_SEARCH = os.environ.get("WORKSPACEX_ENABLE_FULLTEXT_SEARCH", "False").lower() == "true"
+WORKSPACEX_FULLTEXT_DB_PROVIDER = os.environ.get("WORKSPACEX_FULLTEXT_DB_PROVIDER", "elasticsearch")
+
+# Elasticsearch
+ELASTICSEARCH_HOSTS = os.environ.get("ELASTICSEARCH_HOSTS", "localhost:9200")
+ELASTICSEARCH_USERNAME = os.environ.get("ELASTICSEARCH_USERNAME", "")
+ELASTICSEARCH_PASSWORD = os.environ.get("ELASTICSEARCH_PASSWORD", "")
+ELASTICSEARCH_INDEX_PREFIX = os.environ.get("ELASTICSEARCH_INDEX_PREFIX", "workspacex")
+ELASTICSEARCH_NUMBER_OF_SHARDS = int(os.environ.get("ELASTICSEARCH_NUMBER_OF_SHARDS", "1"))
+ELASTICSEARCH_NUMBER_OF_REPLICAS = int(os.environ.get("ELASTICSEARCH_NUMBER_OF_REPLICAS", "0"))
+
+
+####################################
 # Config for RAG
 ####################################
 
