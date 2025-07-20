@@ -709,7 +709,7 @@ class WorkSpace(BaseModel):
     #########################################################
 
 
-    async def retrieve_artifact(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
+    async def retrieve_artifacts(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
         """
         Retrieve an artifact by its ID
         
@@ -743,13 +743,13 @@ class WorkSpace(BaseModel):
         fulltext_task = asyncio.create_task(self._fulltext_search_artifacts(search_query))
         
         vector_results, fulltext_results = await asyncio.gather(vector_task, fulltext_task)
-        
+
         if vector_results:
-            candidate_results.append([vector_result.artifact for vector_result in vector_results])
+            candidate_results += [vector_result.artifact for vector_result in vector_results]
             logger.info(f"🔍 retrieve_artifact vector_results size: {len(vector_results)}")
-            
+
         if fulltext_results:
-            candidate_results.append([fulltext_result.artifact for fulltext_result in fulltext_results])
+            candidate_results += [fulltext_result.artifact for fulltext_result in fulltext_results]
             logger.info(f"🔍 retrieve_artifact fulltext_results size: {len(fulltext_results)}")
             
         logger.info(f"🔍 retrieve_artifact candidate_results size: {len(candidate_results)}")

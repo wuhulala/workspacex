@@ -87,12 +87,10 @@ ELASTICSEARCH_NUMBER_OF_REPLICAS = int(os.environ.get("ELASTICSEARCH_NUMBER_OF_R
 ####################################
 # Config for Reranker
 ####################################
-WORKSPACEX_ENABLE_RERANKER = os.environ.get("WORKSPACEX_ENABLE_RERANKER", "False").lower() == "true"
+WORKSPACEX_RERANKER_PROVIDER = os.environ.get("WORKSPACEX_RERANKER_PROVIDER", "local")
 WORKSPACEX_RERANKER_BASE_URL = os.environ.get("WORKSPACEX_RERANKER_BASE_URL", "http://localhost:8000")
 WORKSPACEX_RERANKER_API_KEY = os.environ.get("WORKSPACEX_RERANKER_API_KEY", "")
 WORKSPACEX_RERANKER_MODEL_NAME = os.environ.get("WORKSPACEX_RERANKER_MODEL_NAME", "reranker")
-WORKSPACEX_RERANKER_SCORE_THRESHOLD = os.environ.get("WORKSPACEX_RERANKER_SCORE_THRESHOLD", "0.5")
-WORKSPACEX_RERANKER_TOP_N = os.environ.get("WORKSPACEX_RERANKER_TOP_N", "10")
 
 
 ####################################

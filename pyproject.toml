@@ -1,6 +1,6 @@
 [project]
 name = "workspacex"
-version = "0.1.22"
+version = "0.1.23"
 description = "workspacex is a Python library for managing AIGC (AI-Generated Content) artifacts. It provides a collaborative workspace environment for handling multiple artifacts with features like version control, update notifications, artifact management, and pluggable storage and embedding backends."
 authors = [
     {name = "wuhulala",email = "xueaohui@gmail.com"}
@@ -38,13 +38,17 @@ reranker-server = [
 chunker-sentence = [
     "sentence_transformers>=5.0.0"
 ]
+mcp =[
+    "fastmcp>=2.10.6"
+]
 all = [
     "fastapi>=0.110.0",
     "uvicorn>=0.27.1",
     "torch>=2.2.0",
     "transformers>=4.51.0",
     "sentence_transformers>=5.0.0",
-    "elasticsearch==8.17.2"
+    "elasticsearch==8.17.2",
+    "fastmcp>=2.10.6"
 ]
 
 [build-system]
