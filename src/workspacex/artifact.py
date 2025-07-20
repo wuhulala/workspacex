@@ -188,7 +188,7 @@ class Artifact(BaseModel):
             "parent_id": self.parent_id,
             # "version_count": len(self.version_history),
             # "version_history": self.version_history,
-            # "sublist": [sub.to_dict() for sub in self.sublist] if self.sublist else []
+            "sublist": [sub.to_dict() for sub in self.sublist] if self.sublist else []
         }
 
     @classmethod

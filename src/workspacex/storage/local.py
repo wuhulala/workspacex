@@ -114,7 +114,8 @@ class LocalPathRepository(BaseRepository):
         artifact_dir = self.full_artifact_dir(artifact_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
         artifact_meta = artifact.to_dict()
-        self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, save_sub_list_content)
+        if save_sub_list_content:
+            self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, save_sub_list_content)
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)

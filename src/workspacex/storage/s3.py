@@ -105,8 +105,8 @@ class S3Repository(BaseRepository):
             f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts"
         )
         artifact_meta = artifact.to_dict()
-
-        self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content)
+        if save_sub_list_content:
+            self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content)
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         from workspacex.storage.local import CommonEncoder
         logger.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts")
