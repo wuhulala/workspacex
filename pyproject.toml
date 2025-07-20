@@ -1,6 +1,6 @@
 [project]
 name = "workspacex"
-version = "0.1.27"
+version = "0.1.28"
 description = "workspacex is a Python library for managing AIGC (AI-Generated Content) artifacts. It provides a collaborative workspace environment for handling multiple artifacts with features like version control, update notifications, artifact management, and pluggable storage and embedding backends."
 authors = [
     {name = "wuhulala",email = "xueaohui@gmail.com"}

@@ -1,9 +1,10 @@
-from abc import ABC, abstractmethod
 import json
 import logging
 import traceback
-from typing import Any, Optional
 import uuid
+from abc import ABC, abstractmethod
+from typing import Any, Optional
+
 from workspacex.artifact import Artifact, ArtifactType
 from workspacex.utils.rag_utils import call_llm, call_llm_async
 
@@ -19,7 +20,7 @@ class BaseExtractor(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def async_extract(self, content: Any) -> Optional[list[Artifact]]:
+    async def async_extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
         """Extract artifacts from content."""
         raise NotImplementedError
 
