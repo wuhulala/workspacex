@@ -5,26 +5,28 @@ from pydantic import BaseModel, Field
 
 from workspacex.artifact import Artifact
 
+
 class RerankConfig(BaseModel):
+    provider: str = Field(default="local", description="Provider")
     base_url: str = Field(..., description="Base URL")
     api_key: Optional[str] = Field(default=None, description="API key")
     model_name: Optional[str] = Field(default=None, description="Model name")
-    score_threshold: Optional[float] = Field(default=0.5, description="Score threshold")
-    top_n: Optional[int] = Field(default=10, description="Top n")
+
 
 class RerankResult(BaseModel):
     artifact: Artifact = Field(..., description="Artifact")
     score: float = Field(..., description="Score")
 
+
 class BaseRerankRunner(ABC):
     @abstractmethod
     def run(
-        self,
-        query: str,
-        documents: list[Artifact],
-        score_threshold: Optional[float] = None,
-        top_n: Optional[int] = None,
-        user: Optional[str] = None,
+            self,
+            query: str,
+            documents: list[Artifact],
+            score_threshold: Optional[float] = 0.8,
+            top_n: Optional[int] = 5,
+            user: Optional[str] = None,
     ) -> list[RerankResult]:
         """
         Run rerank model

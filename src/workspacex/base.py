@@ -14,6 +14,7 @@ from workspacex.config import WORKSPACEX_CHUNK_OVERLAP, WORKSPACEX_CHUNK_SIZE, W
     ELASTICSEARCH_INDEX_PREFIX, ELASTICSEARCH_NUMBER_OF_SHARDS, ELASTICSEARCH_NUMBER_OF_REPLICAS
 from workspacex.embedding.base import EmbeddingsConfig
 from workspacex.fulltext.factory import FulltextDBConfig
+from workspacex.reranker.base import RerankConfig
 from workspacex.vector.factory import VectorDBConfig
 
 
@@ -45,12 +46,14 @@ class WorkspaceConfig:
     embedding_config: EmbeddingsConfig = Field(default=None, description="Embedding configuration")
     vector_db_config: VectorDBConfig = Field(default=None, description="Vector database configuration")
     fulltext_db_config: FulltextDBConfig = Field(default=None, description="Full-text database configuration")
+    reranker_config: RerankConfig = Field(default=None, description="Reranker configuration")
 
     def __init__(self, chunk_config: ChunkConfig = None
                  , embedding_config: EmbeddingsConfig = None
                  , vector_db_config: VectorDBConfig = None
                  , hybrid_search_config: HybridSearchConfig = None
                  , fulltext_db_config: FulltextDBConfig = None
+                 , reranker_config: RerankConfig = None
                  ):
         if chunk_config is None:
             self.chunk_config = ChunkConfig(
@@ -141,6 +144,17 @@ class WorkspaceConfig:
         else:
             self.fulltext_db_config = fulltext_db_config
 
+        if reranker_config is None:
+            self.reranker_config = RerankConfig(
+                base_url=WORKSPACEX_RERANKER_BASE_URL,
+                api_key=WORKSPACEX_RERANKER_API_KEY,
+                model_name=WORKSPACEX_RERANKER_MODEL_NAME,
+                score_threshold=WORKSPACEX_RERANKER_SCORE_THRESHOLD,
+                top_n=WORKSPACEX_RERANKER_TOP_N
+            )
+        else:
+            self.reranker_config = reranker_config
+
     @classmethod
     def from_config(cls, config: dict):
         return cls(
@@ -148,7 +162,8 @@ class WorkspaceConfig:
             embedding_config=EmbeddingsConfig.from_config(config.get("embedding_config")) if config else None,
             vector_db_config=VectorDBConfig.from_config(config.get("vector_db_config")) if config else None,
             hybrid_search_config=HybridSearchConfig.from_config(config.get("hybrid_search_config")) if config else None,
-            fulltext_db_config=FulltextDBConfig.from_config(config.get("fulltext_db_config")) if config else None
+            fulltext_db_config=FulltextDBConfig.from_config(config.get("fulltext_db_config")) if config else None,
+            reranker_config=RerankConfig.from_config(config.get("reranker_config")) if config else None
         )
 
     def to_dict(self):
@@ -157,5 +172,6 @@ class WorkspaceConfig:
             "embedding_config": self.embedding_config.model_dump(),
             "vector_db_config": self.vector_db_config.model_dump(),
             "hybrid_search_config": self.hybrid_search_config.model_dump(),
-            "fulltext_db_config": self.fulltext_db_config.model_dump()
+            "fulltext_db_config": self.fulltext_db_config.model_dump(),
+            "reranker_config": self.reranker_config.model_dump()
         }

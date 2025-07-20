@@ -13,11 +13,13 @@ from workspacex.artifact import ArtifactType, Artifact, Chunk, ChunkSearchQuery,
 from workspacex.base import WorkspaceConfig
 from workspacex.chunk.base import ChunkerFactory
 from workspacex.code_artifact import CodeArtifact
-from workspacex.embedding.base import EmbeddingFactory, Embeddings
+from workspacex.embedding.base import EmbeddingFactory
 from workspacex.fulltext.dbs.base import FulltextDB, FulltextSearchResult
 from workspacex.fulltext.factory import FulltextDBFactory
 from workspacex.noval_artifact import NovelArtifact
 from workspacex.observer import WorkspaceObserver, get_observer
+from workspacex.reranker.base import RerankResult
+from workspacex.reranker.factory import RerankerFactory
 from workspacex.storage.base import BaseRepository
 from workspacex.storage.local import LocalPathRepository
 from workspacex.utils.logger import logger
@@ -42,7 +44,7 @@ class WorkSpace(BaseModel):
     observers: Optional[List[WorkspaceObserver]] = Field(default=[], description="list of observers", exclude=True)
     repository: Optional[BaseRepository] = Field(default=None, description="local artifact repository", exclude=True)
     workspace_config: Optional[WorkspaceConfig] = Field(default=None, description="workspace config", exclude=True)
-    embedder: Optional[Embeddings] = Field(default=None, description="embedder instance", exclude=True)
+    
     vector_db: Optional[VectorDB] = Field(default=None, description="vector_db instance", exclude=True)
     fulltext_db: Optional[FulltextDB] = Field(default=None, description="fulltext_db instance", exclude=True)
 
@@ -102,8 +104,7 @@ class WorkSpace(BaseModel):
                 if observer not in self.observers:  # Avoid duplicates
                     self.add_observer(observer)
 
-        self.embedder = EmbeddingFactory.get_embedder(self.workspace_config.embedding_config)
-        self.vector_db = VectorDBFactory.get_vector_db(self.workspace_config.vector_db_config)
+
         
         # Initialize full-text search database if enabled
         if self.workspace_config.fulltext_db_config and self.workspace_config.fulltext_db_config.provider:
@@ -111,14 +112,39 @@ class WorkSpace(BaseModel):
         else:
             self.fulltext_db = None
             
-        if self.workspace_config.chunk_config.enabled:
-            self.chunker = ChunkerFactory.get_chunker(self.workspace_config.chunk_config)
+        # Initialize vector database if enabled
+        if self.workspace_config.vector_db_config and self.workspace_config.vector_db_config.provider:
+            self.vector_db = VectorDBFactory.get_vector_db(self.workspace_config.vector_db_config)
         else:
-            self.chunker = None
+            self.vector_db = None
+        
+        self._reranker = None
+        self._chunker = None
+        self._embedder = None
+        
         if clear_existing:
-            self.vector_db.delete(self.workspace_id)
+            if self.vector_db:
+                self.vector_db.delete(self.workspace_id)
             if self.fulltext_db:
                 self.fulltext_db.delete(self.workspace_id)
+
+    @property
+    def chunker(self):
+        if not self._chunker:
+            self._chunker = ChunkerFactory.get_chunker(self.workspace_config.chunk_config)
+        return self._chunker
+
+    @property
+    def embedder(self):
+        if not self._embedder:
+            self._embedder = EmbeddingFactory.get_embedder(self.workspace_config.embedding_config)
+        return self._embedder
+
+    @property
+    def reranker(self):
+        if not self._reranker:
+            self._reranker = RerankerFactory.getReranker(self.workspace_config.reranker_config)
+        return self._reranker
 
     @classmethod
     def from_s3_storages(cls, workspace_id: Optional[str] = None,
@@ -695,57 +721,91 @@ class WorkSpace(BaseModel):
             Artifact object if found, None otherwise
         """
         logger.info(f"🔍 retrieve_artifact search_query: {search_query}")
-        results = []
+
+        if not self.workspace_config.hybrid_search_config.enabled:
+            return []
+
         if not search_query:
             logger.warning("🔍 retrieve_artifact search_query is None")
             return None
-        
+
         if not search_query.limit:
             search_query.limit = self.workspace_config.hybrid_search_config.top_k
-        
+
         if not search_query.threshold:
             search_query.threshold = self.workspace_config.hybrid_search_config.threshold
         logger.debug(f"🔍 retrieve_artifact final search_query: {search_query}")
 
-        # 1. Embed query
-        if self.workspace_config.hybrid_search_config.enabled:
-            query_embedding = self.embedder.embed_query(search_query.query)
-
-            # 2. Search vector db
-            search_results = self.vector_db.search(self.workspace_id, [query_embedding], filter={}, threshold=search_query.threshold, limit=search_query.limit)
-            if not search_results:
-                logger.warning("🔍 retrieve_artifact search_results is None")
-                return None
-            
-            if not search_results.docs:
-                logger.warning("🔍 retrieve_artifact search_results.docs is None")
-                return None
-            
-            existing_artifact_ids = []
-            
-            for doc in search_results.docs:
-                if not doc.metadata:
-                    logger.warning("🔍 retrieve_artifact doc.metadata is None")
-                    continue
-                if doc.metadata.artifact_id in existing_artifact_ids:
-                    logger.debug(f"🔍 retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
-                    continue
-                artifact = self.get_artifact(doc.metadata.artifact_id, parent_id = doc.metadata.parent_id)
-                existing_artifact_ids.append(doc.metadata.artifact_id)
-                if not artifact:
-                    logger.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
-                    continue
-                logger.debug(f"🔍 retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
-                results.append(HybridSearchResult(artifact=artifact, score=doc.score))
+        candidate_results = []
         
-        # 3. Full-text search if enabled and no results from vector search
-        if not results and self.fulltext_db:
-            logger.info("🔍 retrieve_artifact no vector search results, trying full-text search")
-            fulltext_results = await self._fulltext_search_artifacts(search_query)
-            if fulltext_results:
-                results.extend(fulltext_results)
+        # Execute vector and fulltext search concurrently
+        vector_task = asyncio.create_task(self._vector_search_artifacts(search_query))
+        fulltext_task = asyncio.create_task(self._fulltext_search_artifacts(search_query))
+        
+        vector_results, fulltext_results = await asyncio.gather(vector_task, fulltext_task)
+        
+        if vector_results:
+            candidate_results.append([vector_result.artifact for vector_result in vector_results])
+            logger.info(f"🔍 retrieve_artifact vector_results size: {len(vector_results)}")
+            
+        if fulltext_results:
+            candidate_results.append([fulltext_result.artifact for fulltext_result in fulltext_results])
+            logger.info(f"🔍 retrieve_artifact fulltext_results size: {len(fulltext_results)}")
+            
+        logger.info(f"🔍 retrieve_artifact candidate_results size: {len(candidate_results)}")
+        rerank_results = await self._rerank_candidate_artifacts(search_query.query,candidate_results)
+
+        # Convert rerank results to HybridSearchResults and limit to requested size
+        results = [
+            HybridSearchResult(artifact=result.artifact, score=result.score) 
+            for result in rerank_results[:search_query.limit]
+        ]
         
         logger.info(f"🔍 retrieve_artifact results size: {len(results)}")
+        return results
+
+    async def _rerank_candidate_artifacts(self, user_message: str, candidates: list[Artifact]) -> Optional[list[RerankResult]]:
+        # remove duplicate results by artifact_id
+        unique_results = {}
+        for result in candidates:
+            unique_results[result.artifact_id] = result
+            
+        logger.info(f"🔍 _rerank_candidate_artifacts unique_results: {len(unique_results)}")
+
+        rerank_results = self.reranker.run(user_message, list(unique_results.values()), score_threshold=self.workspace_config.hybrid_search_config.threshold)
+        for result in rerank_results:
+            logger.debug(f"[rerank_result]: {user_message} artifact: {result.artifact.artifact_id} score: {result.score}")
+        return rerank_results
+
+    async def _vector_search_artifacts(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
+        query_embedding = self.embedder.embed_query(search_query.query)
+        results = []
+        # 2. Search vector db
+        search_results = self.vector_db.search(self.workspace_id, [query_embedding], filter={},
+                                               threshold=search_query.threshold, limit=search_query.limit)
+        if not search_results:
+            logger.warning("🔍 retrieve_artifact search_results is None")
+            return None
+
+        if not search_results.docs:
+            logger.warning("🔍 retrieve_artifact search_results.docs is None")
+            return None
+        existing_artifact_ids = []
+
+        for doc in search_results.docs:
+            if not doc.metadata:
+                logger.warning("🔍 retrieve_artifact doc.metadata is None")
+                continue
+            if doc.metadata.artifact_id in existing_artifact_ids:
+                logger.debug(f"🔍 retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
+                continue
+            artifact = self.get_artifact(doc.metadata.artifact_id, parent_id=doc.metadata.parent_id)
+            existing_artifact_ids.append(doc.metadata.artifact_id)
+            if not artifact:
+                logger.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
+                continue
+            logger.debug(f"🔍 retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
+            results.append(HybridSearchResult(artifact=artifact, score=doc.score))
         return results
     
     async def retrieve_chunk(self, search_query: ChunkSearchQuery) -> Optional[list[ChunkSearchResult]]:

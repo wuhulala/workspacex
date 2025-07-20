@@ -1,17 +1,19 @@
 from typing import List, Optional
-from workspacex.reranker.base import BaseRerankRunner, RerankConfig, RerankResult
-from workspacex.artifact import Artifact
-from workspacex.utils.logger import logger
 
 import requests
 
+from workspacex.artifact import Artifact
+from workspacex.reranker.base import BaseRerankRunner, RerankConfig, RerankResult
+from workspacex.utils.logger import logger
 from workspacex.utils.timeit import timeit
+
 
 class HttpRerankRunner(BaseRerankRunner):
     """
     Aliyun Rerank Runner supporting both SDK and HTTP methods.
     The method is selected based on the config or SDK availability.
     """
+
     def __init__(self, config: RerankConfig, use_sdk: Optional[bool] = None) -> None:
         """
         Initialize AliyunRerankRunner.
@@ -22,12 +24,12 @@ class HttpRerankRunner(BaseRerankRunner):
         self.config = config
 
     def run(
-        self,
-        query: str,
-        documents: List[Artifact],
-        score_threshold: Optional[float] = None,
-        top_n: Optional[int] = None,
-        user: Optional[str] = None,
+            self,
+            query: str,
+            documents: List[Artifact],
+            score_threshold: Optional[float] = 0.8,
+            top_n: Optional[int] = 5,
+            user: Optional[str] = None,
     ) -> List[RerankResult]:
         """
         Run Aliyun rerank model using SDK or HTTP.
@@ -44,12 +46,12 @@ class HttpRerankRunner(BaseRerankRunner):
 
     @timeit(logger.info, "HttpRerankRunner._run_http took {elapsed_time:.3f} seconds")
     def _run_http(
-        self,
-        query: str,
-        documents: List[Artifact],
-        score_threshold: Optional[float],
-        top_n: Optional[int],
-        user: Optional[str],
+            self,
+            query: str,
+            documents: List[Artifact],
+            score_threshold: Optional[float] = 0.8,
+            top_n: Optional[int] = 10,
+            user: Optional[str] = None,
     ) -> List[RerankResult]:
         """
         Run rerank using Aliyun HTTP API.
