@@ -1,12 +1,11 @@
+import logging
 import os
 import time
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-import logging
 from langfuse.langchain import CallbackHandler
-
 
 
 def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {}) -> str:
@@ -20,9 +19,12 @@ def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {
     try:
         start_time = time.time()
         llm_model = get_llm_model(model_name, llm_config)
-        response = llm_model.invoke(
-            [{"role": "user", "content": prompt}],
-                                    config=RunnableConfig(callbacks=[langfuse_handler]))
+        if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
+            response = llm_model.invoke(
+                [{"role": "user", "content": prompt}],
+                config=RunnableConfig(callbacks=[langfuse_handler]))
+        else:
+            response = llm_model.invoke([{"role": "user", "content": prompt}])
         use_time = time.time() - start_time
         logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖")
         return response.content
@@ -45,9 +47,12 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -
     try:
         start_time = time.time()
         llm_model = get_llm_model(model_name, llm_config)
-        response = await llm_model.ainvoke(
-            [{"role": "user", "content": prompt}],
-                                    config=RunnableConfig(callbacks=[langfuse_handler]))
+        if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
+            response = await llm_model.ainvoke(
+                [{"role": "user", "content": prompt}],
+                config=RunnableConfig(callbacks=[langfuse_handler]))
+        else:
+            response = await llm_model.ainvoke([{"role": "user", "content": prompt}])
         use_time = time.time() - start_time
         logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖")
         return response.content
