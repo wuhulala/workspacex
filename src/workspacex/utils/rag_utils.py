@@ -5,11 +5,22 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from langfuse.langchain import CallbackHandler
 
+
+class LangFuseHolder:
+
+    def __init__(self):
+
+        if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
+            from langfuse.langchain import CallbackHandler
+            self._langfuse_handler = CallbackHandler()
+
+    def get_handler(self):
+        return self._langfuse_handler
+
+langfuse = LangFuseHolder()
 
 def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {}) -> str:
-    langfuse_handler = CallbackHandler()
 
     if os.environ.get('LLM_API_KEY') is None:
         raise ValueError("LLM_API_KEY is not set")
@@ -22,7 +33,7 @@ def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {
         if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
             response = llm_model.invoke(
                 [{"role": "user", "content": prompt}],
-                config=RunnableConfig(callbacks=[langfuse_handler]))
+                config=RunnableConfig(callbacks=[langfuse.get_handler()]))
         else:
             response = llm_model.invoke([{"role": "user", "content": prompt}])
         use_time = time.time() - start_time
@@ -37,7 +48,6 @@ def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {
 async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -> str:
     if llm_config is None:
         llm_config = {}
-    langfuse_handler = CallbackHandler()
 
     if os.environ.get('LLM_API_KEY') is None:
         raise ValueError("LLM_API_KEY is not set")
@@ -50,7 +60,7 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -
         if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
             response = await llm_model.ainvoke(
                 [{"role": "user", "content": prompt}],
-                config=RunnableConfig(callbacks=[langfuse_handler]))
+                config=RunnableConfig(callbacks=[langfuse.get_handler()]))
         else:
             response = await llm_model.ainvoke([{"role": "user", "content": prompt}])
         use_time = time.time() - start_time
@@ -79,3 +89,5 @@ def get_llm_model(model_name: str = None, llm_config=None) -> ChatOpenAI:
         frequency_penalty=llm_config.get('frequency_penalty', 0),
         presence_penalty=llm_config.get('presence_penalty', 0)
     )
+
+
