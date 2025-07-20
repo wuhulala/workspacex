@@ -53,7 +53,6 @@ console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 
 # Configure logger
-logger.setLevel(logging.INFO)
 logger.addHandler(console_handler)
 
 # Remove any existing handlers to avoid duplication
@@ -76,8 +75,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
     
     # Create a new logger with the same configuration
     new_logger = logging.getLogger(f"workspacex.{name}")
-    new_logger.setLevel(logging.INFO)
-    
+
     # Add the same formatter
     if not new_logger.handlers:
         handler = logging.StreamHandler()

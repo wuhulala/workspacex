@@ -692,17 +692,20 @@ class WorkSpace(BaseModel):
     def get_file_content_by_artifact_id(self, artifact_id: str, parent_id: str = None) -> Optional[str]:
         """
         Get concatenated content of all artifacts with the same filename.
-        
+
         Args:
             artifact_id: artifact_id
-            
+
         Returns:
             Raw unescaped concatenated content of all matching artifacts
         """
         artifact = self._get_artifact(artifact_id)
         if not artifact:
             return None
-        return self.repository.get_subaritfact_content(artifact.artifact_id, artifact.parent_id)
+        return self._get_file_content_by_artifact_id(artifact.artifact_id, artifact.parent_id)
+
+    def _get_file_content_by_artifact_id(self, artifact_id: str, parent_id: str = None) -> Optional[str]:
+        return self.repository.get_subaritfact_content(artifact_id, parent_id)
     
     #########################################################
     # Hybrid Search
@@ -712,7 +715,7 @@ class WorkSpace(BaseModel):
     async def retrieve_artifacts(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
         """
         Retrieve an artifact by its ID
-        
+
         Args:
             query: Query string
             filter_types: Optional filter types
@@ -737,30 +740,36 @@ class WorkSpace(BaseModel):
         logger.debug(f"🔍 retrieve_artifact final search_query: {search_query}")
 
         candidate_results = []
-        
+
         # Execute vector and fulltext search concurrently
         vector_task = asyncio.create_task(self._vector_search_artifacts(search_query))
         fulltext_task = asyncio.create_task(self._fulltext_search_artifacts(search_query))
-        
+
         vector_results, fulltext_results = await asyncio.gather(vector_task, fulltext_task)
 
         if vector_results:
             candidate_results += [vector_result.artifact for vector_result in vector_results]
             logger.info(f"🔍 retrieve_artifact vector_results size: {len(vector_results)}")
+            for item in vector_results:
+                logger.debug(f"🔍 retrieve_artifact vector_results item: {item.artifact.artifact_id}: {item.score}")
 
         if fulltext_results:
             candidate_results += [fulltext_result.artifact for fulltext_result in fulltext_results]
             logger.info(f"🔍 retrieve_artifact fulltext_results size: {len(fulltext_results)}")
-            
+            for item in fulltext_results:
+                logger.debug(f"🔍 retrieve_artifact fulltext_results item: {item.artifact.artifact_id}: {item.score}")
+
         logger.info(f"🔍 retrieve_artifact candidate_results size: {len(candidate_results)}")
         rerank_results = await self._rerank_candidate_artifacts(search_query.query,candidate_results)
-
+        for item in rerank_results:
+            logger.debug(f"🔍 retrieve_artifact rerank_results item: {item.artifact.artifact_id}: {item.score}")
+        
         # Convert rerank results to HybridSearchResults and limit to requested size
         results = [
-            HybridSearchResult(artifact=result.artifact, score=result.score) 
+            HybridSearchResult(artifact=result.artifact, score=result.score)
             for result in rerank_results[:search_query.limit]
         ]
-        
+
         logger.info(f"🔍 retrieve_artifact results size: {len(results)}")
         return results
 
@@ -769,7 +778,9 @@ class WorkSpace(BaseModel):
         unique_results = {}
         for result in candidates:
             unique_results[result.artifact_id] = result
-            
+            if not result.content:
+                result.content = self._get_file_content_by_artifact_id(artifact_id=result.artifact_id, parent_id=result.parent_id)
+
         logger.info(f"🔍 _rerank_candidate_artifacts unique_results: {len(unique_results)}")
 
         rerank_results = self.reranker.run(user_message, list(unique_results.values()), score_threshold=self.workspace_config.hybrid_search_config.threshold)

@@ -11,6 +11,13 @@ class RerankConfig(BaseModel):
     base_url: str = Field(..., description="Base URL")
     api_key: Optional[str] = Field(default=None, description="API key")
     model_name: Optional[str] = Field(default=None, description="Model name")
+    
+    @staticmethod
+    def from_config(config: dict) -> "RerankConfig":
+        if not config:
+            return None
+        return RerankConfig(**config)
+
 
 
 class RerankResult(BaseModel):
