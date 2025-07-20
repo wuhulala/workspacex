@@ -3,4 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
-python 环境是 conda activate rl
+1. 你只需要认真的写代码
+2. 示例和readme需要我确认之后你再开始编写
+3. 新模块代码编写之前先确认设计思路之后再开始编写
+4. 如果需要使用环境的内容执行shell命令 你只需要生成 由用户执行后给你
