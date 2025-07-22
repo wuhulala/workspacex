@@ -62,7 +62,9 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -
                 [{"role": "user", "content": prompt}],
                 config=RunnableConfig(callbacks=[langfuse.get_handler()]))
         else:
-            response = await llm_model.ainvoke([{"role": "user", "content": prompt}])
+            response = await llm_model.ainvoke(
+                [{"role": "user", "content": prompt}]
+            )
         use_time = time.time() - start_time
         logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖")
         return response.content
@@ -87,7 +89,8 @@ def get_llm_model(model_name: str = None, llm_config=None) -> ChatOpenAI:
         max_tokens=llm_config.get('max_tokens', 4096),
         temperature=llm_config.get('temperature', 0.5),
         frequency_penalty=llm_config.get('frequency_penalty', 0),
-        presence_penalty=llm_config.get('presence_penalty', 0)
+        presence_penalty=llm_config.get('presence_penalty', 0),
+        extra_body=llm_config.get('extra_body', {})
     )
 
 
