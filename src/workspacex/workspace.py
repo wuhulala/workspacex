@@ -47,6 +47,7 @@ class WorkSpace(BaseModel):
     
     vector_db: Optional[VectorDB] = Field(default=None, description="vector_db instance", exclude=True)
     fulltext_db: Optional[FulltextDB] = Field(default=None, description="fulltext_db instance", exclude=True)
+    kv_db: Optional[dict[str, Any]] = Field(default_factory=dict, description="kv_db instance", exclude=True)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
     
