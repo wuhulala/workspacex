@@ -47,7 +47,10 @@ class BaseLLMExtractor(BaseExtractor):
 
     def extract_by_llm(self, content: Any, llm_config: dict[str, Any] = None) -> str:
         prompt = self.extractor_prompt.format(text=content)
-        llm_result = call_llm(prompt, self.extractor_model, llm_config)
+        extract_model = self.extractor_model
+        if llm_config and llm_config.get("extract_model"):
+            extract_model = llm_config.get("extract_model")
+        llm_result = call_llm(prompt, extract_model, llm_config)
         if self.format_json:
             extracted_data = json.loads(llm_result.replace("```json", "").replace("```", ""))
             logging.debug(f"extracted_data: {extracted_data}")
@@ -70,7 +73,10 @@ class BaseLLMExtractor(BaseExtractor):
 
     async def extract_by_llm_async(self, content: Any, llm_config: dict[str, Any] = None) -> str:
         prompt = self.extractor_prompt.format(text=content)
-        llm_result = await call_llm_async(prompt, self.extractor_model, llm_config)
+        extract_model = self.extractor_model
+        if llm_config and llm_config.get("extract_model"):
+            extract_model = llm_config.get("extract_model")
+        llm_result = await call_llm_async(prompt, extract_model, llm_config)
         if self.format_json:
             extracted_data = json.loads(llm_result.replace("```json", "").replace("```", ""))
             logging.debug(f"extracted_data: {extracted_data}")
