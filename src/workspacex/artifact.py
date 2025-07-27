@@ -92,6 +92,7 @@ class Artifact(BaseModel):
     create_file: bool = Field(default=False, description="Flag to indicate if a file should be created")
     sublist: List['Artifact'] = Field(default_factory=list, description="List of sub-artifacts (children)")
     chunk_list: List[Chunk] = Field(default_factory=list, description="List of chunks")
+    kv_store: Dict[str, Any] = Field(default_factory=dict, description="key-value store do not persist", exclude=True)
 
     # Use model_validator for initialization logic
     @model_validator(mode='after')
@@ -261,6 +262,9 @@ class Artifact(BaseModel):
     @property
     def support_chunking(self):
         return True
+
+class SummaryArtifact(Artifact):
+    origin_artifact: Artifact
 
 class HybridSearchQuery(BaseModel):
     query: str = Field(..., description="Query string")

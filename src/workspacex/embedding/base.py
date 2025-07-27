@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from workspacex.artifact import Artifact, Chunk
+from workspacex.artifact import Artifact, Chunk, SummaryArtifact
 from workspacex.utils.logger import logger
 
 
@@ -44,7 +44,7 @@ class EmbeddingsMetadata(BaseModel):
     updated_at: int = Field(..., description="Updated at")
     artifact_type: str = Field(..., description="Artifact type")
     parent_id: str = Field(default="", description="Parent ID")
-    chunk_id: Optional[str] = Field(default=None, description="Chunk ID")
+    chunk_id: Optional[str] = Field(default=None, description="Chunk ID/SummaryId")
     chunk_index: Optional[int] = Field(default=None, description="Chunk index")
     chunk_size: Optional[int] = Field(default=None, description="Chunk size")
     chunk_overlap: Optional[int] = Field(default=None, description="Chunk overlap")
@@ -161,6 +161,8 @@ class EmbeddingsBase(Embeddings):
         Returns:
             EmbeddingsResult: Embedding result for the artifact.
         """
+        if isinstance(artifact, SummaryArtifact):
+            return self._embed_summary_artifact(artifact)
         embedding = self.embed_query(artifact.get_embedding_text())
         now = int(time.time())
         metadata = EmbeddingsMetadata(
@@ -170,6 +172,31 @@ class EmbeddingsBase(Embeddings):
             updated_at=now,
             artifact_type=artifact.artifact_type.name,
             parent_id=artifact.parent_id
+        )
+        return EmbeddingsResult(
+            id=artifact.artifact_id,
+            embedding=embedding,
+            content=artifact.get_embedding_text(),
+            metadata=metadata
+        )
+
+    def _embed_summary_artifact(self, artifact: SummaryArtifact) -> EmbeddingsResult:
+        """
+        Internal method to asynchronously embed a single artifact.
+        Args:
+            artifact (Artifact): Artifact to embed.
+        Returns:
+            EmbeddingsResult: Embedding result for the artifact.
+        """
+        embedding = self.embed_query(artifact.get_embedding_text())
+        now = int(time.time())
+        metadata = EmbeddingsMetadata(
+            artifact_id=artifact.origin_artifact.artifact_id,
+            embedding_model=self.config.model_name,
+            created_at=now,
+            updated_at=now,
+            artifact_type=artifact.origin_artifact.artifact_type.name,
+            parent_id=artifact.origin_artifact.parent_id
         )
         return EmbeddingsResult(
             id=artifact.artifact_id,
@@ -217,6 +244,9 @@ class EmbeddingsBase(Embeddings):
         Returns:
             EmbeddingsResult: Embedding result for the artifact.
         """
+        if isinstance(artifact, SummaryArtifact):
+            return await self._embed_summary_artifact(artifact)
+
         embedding = await self.async_embed_query(artifact.get_embedding_text())
         now = int(time.time())
         metadata = EmbeddingsMetadata(
@@ -226,6 +256,31 @@ class EmbeddingsBase(Embeddings):
             updated_at=now,
             artifact_type=artifact.artifact_type.name,
             parent_id=artifact.parent_id
+        )
+        return EmbeddingsResult(
+            id=artifact.artifact_id,
+            embedding=embedding,
+            content=artifact.get_embedding_text(),
+            metadata=metadata
+        )
+
+    async def _async_embed_summary_artifact(self, artifact: SummaryArtifact) -> EmbeddingsResult:
+        """
+        Internal method to asynchronously embed a single artifact.
+        Args:
+            artifact (Artifact): Artifact to embed.
+        Returns:
+            EmbeddingsResult: Embedding result for the artifact.
+        """
+        embedding = await self.async_embed_query(artifact.get_embedding_text())
+        now = int(time.time())
+        metadata = EmbeddingsMetadata(
+            artifact_id=artifact.origin_artifact.artifact_id,
+            embedding_model=self.config.model_name,
+            created_at=now,
+            updated_at=now,
+            artifact_type=artifact.origin_artifact.artifact_type.name,
+            parent_id=artifact.origin_artifact.parent_id
         )
         return EmbeddingsResult(
             id=artifact.artifact_id,
