@@ -265,7 +265,7 @@ class Artifact(BaseModel):
 class HybridSearchQuery(BaseModel):
     query: str = Field(..., description="Query string")
     filter_types: Optional[List[ArtifactType]] = Field(default=None, description="Filter types")
-    limit: int = Field(default=10, description="Limit")
+    limit: int = Field(default=3, description="Limit")
     threshold: float = Field(default=0.8, description="Threshold")
 
 class HybridSearchResult(BaseModel):
