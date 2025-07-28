@@ -150,7 +150,7 @@ class WorkSpace(BaseModel):
 
     @property
     def default_vector_collection(self):
-        return f"s{self.workspace_id}"
+        return f"{self.workspace_id}"
 
     @property
     def summary_vector_collection(self):
@@ -373,6 +373,9 @@ class WorkSpace(BaseModel):
             artifact.update_metadata(metadata)
             self.repository.store_artifact(artifact, save_sub_list_content=False)
         return True
+
+    async def save_artifact(self, artifact: Artifact, save_sub_list_content=False):
+        self.repository.store_artifact(artifact, save_sub_list_content=save_sub_list_content)
 
     async def delete_artifact(self, artifact_id: str) -> bool:
         """

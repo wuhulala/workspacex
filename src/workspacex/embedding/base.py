@@ -44,10 +44,10 @@ class EmbeddingsMetadata(BaseModel):
     updated_at: int = Field(..., description="Updated at")
     artifact_type: str = Field(..., description="Artifact type")
     parent_id: str = Field(default="", description="Parent ID")
-    chunk_id: Optional[str] = Field(default=None, description="Chunk ID/SummaryId")
-    chunk_index: Optional[int] = Field(default=None, description="Chunk index")
-    chunk_size: Optional[int] = Field(default=None, description="Chunk size")
-    chunk_overlap: Optional[int] = Field(default=None, description="Chunk overlap")
+    chunk_id: Optional[str] = Field(default="0", description="Chunk ID/SummaryId")
+    chunk_index: Optional[int] = Field(default=0, description="Chunk index")
+    chunk_size: Optional[int] = Field(default=0, description="Chunk size")
+    chunk_overlap: Optional[int] = Field(default=0, description="Chunk overlap")
     
     model_config = ConfigDict(extra="allow")
 
@@ -245,7 +245,7 @@ class EmbeddingsBase(Embeddings):
             EmbeddingsResult: Embedding result for the artifact.
         """
         if isinstance(artifact, SummaryArtifact):
-            return await self._embed_summary_artifact(artifact)
+            return await self._async_embed_summary_artifact(artifact)
 
         embedding = await self.async_embed_query(artifact.get_embedding_text())
         now = int(time.time())
@@ -264,7 +264,7 @@ class EmbeddingsBase(Embeddings):
             metadata=metadata
         )
 
-    async def _async_embed_summary_artifact(self, artifact: SummaryArtifact) -> EmbeddingsResult:
+    async def _async_embed_summary_artifact(self, artifact: SummaryArtifact) -> Optional[EmbeddingsResult]:
         """
         Internal method to asynchronously embed a single artifact.
         Args:
@@ -272,6 +272,8 @@ class EmbeddingsBase(Embeddings):
         Returns:
             EmbeddingsResult: Embedding result for the artifact.
         """
+        if not artifact.get_embedding_text():
+            return None
         embedding = await self.async_embed_query(artifact.get_embedding_text())
         now = int(time.time())
         metadata = EmbeddingsMetadata(

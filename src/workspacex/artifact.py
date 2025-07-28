@@ -264,7 +264,16 @@ class Artifact(BaseModel):
         return True
 
 class SummaryArtifact(Artifact):
-    origin_artifact: Artifact
+
+    origin_artifact: Artifact = Field(default=None)
+
+    def __init__(self, origin_artifact: Artifact, **kwargs):
+        if kwargs and isinstance(kwargs, dict):
+            if kwargs.get("artifact_type"):
+                kwargs.pop("artifact_type")
+        super().__init__(artifact_type=ArtifactType.TEXT, **kwargs)
+        self.origin_artifact = origin_artifact
+
 
 class HybridSearchQuery(BaseModel):
     query: str = Field(..., description="Query string")
