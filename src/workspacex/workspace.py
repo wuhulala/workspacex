@@ -655,7 +655,7 @@ class WorkSpace(BaseModel):
     # Artifact Retrieval
     #########################################################
 
-    def list_artifacts(self, filter_types: Optional[List[ArtifactType]] = None) -> List[Artifact]:
+    def list_artifacts(self, artifact_ids: Optional[List[str]] = None, filter_types: Optional[List[ArtifactType]] = None) -> List[Artifact]:
         """
         List all artifacts in the workspace
         
@@ -665,9 +665,11 @@ class WorkSpace(BaseModel):
         Returns:
             List of artifacts
         """
+        if artifact_ids:
+            return [a for a in self.artifacts if a.artifact_id in artifact_ids]
         if filter_types:
             return [a for a in self.artifacts if a.artifact_type in filter_types]
-        return self.artifacts
+        return [a for a in self.artifacts]
     
     def get_artifact(self, artifact_id: str, parent_id: str = None) -> Optional[Artifact]:
         """
@@ -691,6 +693,35 @@ class WorkSpace(BaseModel):
                 return None
 
         return self._get_artifact(artifact_id)
+
+    def get_next_artifact(self, artifact_id: str) -> Optional[Artifact]:
+        for i, artifact in enumerate(self.artifacts):
+            if artifact.artifact_id == artifact_id:
+                if i + 1 >= len(self.artifacts):
+                    return None
+                return self.artifacts[i + 1]
+            if artifact.sublist:
+                for si, sub_artifact in enumerate(artifact.sublist):
+                    if sub_artifact.artifact_id == artifact_id:
+                        if si + 1 >= len(artifact.sublist):
+                            return None
+                        return artifact.sublist[si + 1]
+        return None
+
+    def get_pre_artifact(self, artifact_id: str) -> Optional[Artifact]:
+        for i, artifact in enumerate(self.artifacts):
+            if artifact.artifact_id == artifact_id:
+                if i - 1 < 0:
+                    return None
+                return self.artifacts[i - 1]
+            if artifact.sublist:
+                for si,sub_artifact in enumerate(artifact.sublist):
+                    if sub_artifact.artifact_id == artifact_id:
+                        if si - 1 < 0:
+                            return None
+                        return artifact.sublist[si - 1]
+
+        return None
 
     def _get_artifact(self, artifact_id: str) -> Optional[Artifact]:
         for artifact in self.artifacts:
