@@ -848,7 +848,7 @@ class WorkSpace(BaseModel):
         rerank_results = await self._rerank_candidate_artifacts(search_query.query,candidate_results)
         for item in rerank_results:
             logger.debug(f"🔍 retrieve_artifact rerank_results item: {item.artifact.artifact_id}: {item.score}")
-        
+
         # Convert rerank results to HybridSearchResults and limit to requested size
         results = [
             HybridSearchResult(artifact=result.artifact, score=result.score)
@@ -870,8 +870,11 @@ class WorkSpace(BaseModel):
 
 
         rerank_results = self.reranker.run(user_message, list(unique_results.values()), score_threshold=self.workspace_config.hybrid_search_config.threshold)
+        if not rerank_results:
+            logger.info(f"📊[rerank_result]: {user_message} is empty")
+            return rerank_results
         for result in rerank_results:
-            logger.debug(f"[rerank_result]: {user_message} artifact: {result.artifact.artifact_id} score: {result.score}")
+            logger.info(f"📊[rerank_result]: {user_message} artifact: {result.artifact.artifact_id} score: {result.score}")
         return rerank_results
 
     async def _vector_search_artifacts(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:

@@ -15,5 +15,8 @@ class RerankerFactory:
         elif reranker_config.provider == "http":
             from workspacex.reranker.http import HttpRerankRunner
             return HttpRerankRunner(reranker_config)
+        elif reranker_config.provider == "bm25":
+            from workspacex.reranker.bm25 import BM25RerankRunner
+            return BM25RerankRunner(reranker_config)
         else:
             raise ValueError(f"Invalid reranker provider: {reranker_config.provider}")
