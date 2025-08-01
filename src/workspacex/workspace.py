@@ -691,7 +691,7 @@ class WorkSpace(BaseModel):
 
 
     
-    def get_artifact(self, artifact_id: str, parent_id: str = None) -> Optional[Artifact]:
+    def get_artifact(self, artifact_id: str, parent_id: str = None, load_content:bool = True, load_summary = True) -> Optional[Artifact]:
         """
         Get an artifact by its ID
         
@@ -708,7 +708,15 @@ class WorkSpace(BaseModel):
                     return None
                 for sub_artifact in parent_artifact.sublist:
                     if sub_artifact.artifact_id == artifact_id:
-                        sub_artifact.content = self.repository.get_subaritfact_content(artifact_id, parent_id)
+                        if load_content:
+                            sub_artifact.content = self.repository.get_subaritfact_content(artifact_id, parent_id)
+                        if load_summary:
+                            if self.vector_db:
+                                summary_result = self.vector_db.query(self.summary_vector_collection, filter={
+                                    "artifact_id": sub_artifact.artifact_id
+                                })
+                                if summary_result and len(summary_result.docs) > 0:
+                                    sub_artifact.summary = summary_result.docs[0].content
                         return sub_artifact
                 return None
 

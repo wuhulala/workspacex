@@ -263,6 +263,14 @@ class Artifact(BaseModel):
     def support_chunking(self):
         return True
 
+    @property
+    def summary(self):
+        return self.metadata.get('summary')
+
+    @summary.setter
+    def summary(self, summary: str):
+        self.metadata['summary'] = summary
+
 class SummaryArtifact(Artifact):
 
     origin_artifact: Artifact = Field(default=None)
