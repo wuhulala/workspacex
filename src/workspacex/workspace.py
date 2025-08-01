@@ -156,6 +156,10 @@ class WorkSpace(BaseModel):
     def summary_vector_collection(self):
         return f"summary_{self.workspace_id}"
 
+    @property
+    def full_text_index(self):
+        return f"f_{self.workspace_id}"
+
     @classmethod
     def from_s3_storages(cls, workspace_id: Optional[str] = None,
                          name: Optional[str] = None,
@@ -538,8 +542,9 @@ class WorkSpace(BaseModel):
             
         try:
             documents = []
-            
-            if chunks:
+
+            # default use origin text
+            if chunks and self.workspace_config.fulltext_db_config.config.get('use_chunk'):
                 # Store each chunk as a separate document
                 for chunk in chunks:
                     doc = {
@@ -577,7 +582,7 @@ class WorkSpace(BaseModel):
                     documents.append(doc)
             
             if documents:
-                await asyncio.to_thread(self.fulltext_db.insert, self.workspace_id, documents)
+                await asyncio.to_thread(self.fulltext_db.insert, self.full_text_index, documents)
                 logger.info(f"📦[FULLTEXT]✅ store_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} finished, {len(documents)} documents")
             else:
                 logger.warning(f"📦[FULLTEXT]⚠️ store_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} no content to store")
@@ -585,6 +590,7 @@ class WorkSpace(BaseModel):
         except Exception as e:
             logger.error(f"📦[FULLTEXT]❌ store_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}")
             raise
+
 
     async def _rebuild_artifact_fulltext(self, artifact: Artifact, chunks: List[Chunk] = None) -> None:
         """Store artifact content in full-text search database.
@@ -604,7 +610,7 @@ class WorkSpace(BaseModel):
         self.fulltext_db.delete(self.workspace_id, filter={"artifact_id": artifact.artifact_id})
         logger.info(f"📦[FULLTEXT]✅ delete_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} finished")
         chunkable = artifact.get_metadata_value("chunkable")
-        if chunkable:
+        if chunkable and self.workspace_config.fulltext_db_config.config.get('use_chunk'):
             if not chunks:
                 chunks = await self._load_artifact_chunks(artifact)
         await self._store_artifact_fulltext(artifact, chunks)
@@ -649,13 +655,23 @@ class WorkSpace(BaseModel):
     async def rebuild_artifact_fulltext(self, artifact: Artifact):
         await self._rebuild_artifact_fulltext(artifact)
         for sub_artifact in tqdm(artifact.sublist, f"rebuild_artifact_fulltext_sublist#{artifact.artifact_id}"):
+            if not sub_artifact.content:
+                sub_artifact.content = self._get_file_content_by_artifact_id(artifact_id=sub_artifact.artifact_id, parent_id=artifact.artifact_id)
             await self._rebuild_artifact_fulltext(sub_artifact)
 
     #########################################################
     # Artifact Retrieval
     #########################################################
+    @property
+    def total_artifacts(self):
+        results = []
+        for artifact in self.artifacts:
+            results += [artifact]
+            if artifact.sublist:
+                results += artifact.sublist
+        return results
 
-    def list_artifacts(self, artifact_ids: Optional[List[str]] = None, filter_types: Optional[List[ArtifactType]] = None) -> List[Artifact]:
+    def list_artifacts(self, artifact_ids: Optional[List[str]] = None, filter_types: Optional[List[ArtifactType]] = None, sublist=False) -> List[Artifact]:
         """
         List all artifacts in the workspace
         
@@ -669,7 +685,11 @@ class WorkSpace(BaseModel):
             return [a for a in self.artifacts if a.artifact_id in artifact_ids]
         if filter_types:
             return [a for a in self.artifacts if a.artifact_type in filter_types]
-        return [a for a in self.artifacts]
+        if not sublist:
+            return [a for a in self.artifacts]
+        return self.total_artifacts
+
+
     
     def get_artifact(self, artifact_id: str, parent_id: str = None) -> Optional[Artifact]:
         """
@@ -1032,7 +1052,7 @@ class WorkSpace(BaseModel):
             # Perform full-text search
             search_results = await asyncio.to_thread(
                 self.fulltext_db.search,
-                self.workspace_id,
+                self.full_text_index,
                 search_query.query,
                 filter=filter_dict,
                 limit=search_query.limit,
