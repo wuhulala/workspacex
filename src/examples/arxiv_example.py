@@ -1,12 +1,11 @@
 import asyncio
-import json
 import os
 
 from dotenv import load_dotenv
 
 from workspacex.artifact import ArtifactType, ChunkSearchQuery
-from workspacex.storage.base import CommonEncoder
 from workspacex.utils.logger import logger
+from workspacex.utils.rag_utils import call_llm_async
 from workspacex.workspace import WorkSpace
 
 
@@ -23,7 +22,7 @@ def ensure_output_folder(folder_path: str) -> None:
         os.makedirs(folder_path)
 
 
-async def build_s3_workspace(clear_existing = False) -> WorkSpace:
+async def build_s3_workspace(clear_existing=False) -> WorkSpace:
     load_dotenv()
     """
     Example: Create a NovelArtifact and store it in S3 (MinIO backend).
@@ -52,8 +51,9 @@ async def build_s3_workspace(clear_existing = False) -> WorkSpace:
                         s3_kwargs=s3_kwargs)
     # Create a workspace using S3Repository
     return WorkSpace(workspace_id="arxiv_workspace",
-                   name="Arxiv Example Workspace S3",
-                   repository=repo, clear_existing=False)
+                     name="Arxiv Example Workspace S3",
+                     repository=repo, clear_existing=False)
+
 
 async def create_arxiv_artifact_example() -> None:
     """
@@ -84,25 +84,45 @@ async def create_arxiv_artifact_s3_example(arxiv_id) -> None:
     await ws.rebuild_artifact_fulltext(arxiv)
     await ws.rebuild_artifact_embedding(arxiv)
 
-async def retrieve_chunk(arxiv_id):
+
+async def retrieve_chunk(arxiv_id, use_llm: bool = True):
     ws = await build_s3_workspace()
-    search_query = ChunkSearchQuery(query="what is conclusion about this paper",threshold=0.5, pre_n=0, next_n=0,filters={
-        "artifact_id": f"arxiv_{arxiv_id}"
-    })
+    # query = "这个paper的结论是什么"
+    query = "what is conclusion about this paper"
+    search_query = ChunkSearchQuery(query=query, threshold=0.5, pre_n=0, next_n=0,
+                                    filters={
+                                        "artifact_id": f"arxiv_{arxiv_id}"
+                                    })
     result = await ws.retrieve_chunk(search_query)
-    print(json.dumps(result, indent=2, cls=CommonEncoder))
+    context = ""
+    for item in result:
+        context += (
+            f"\n\nchunk_id: {item.chunk.chunk_id}(relevant_score: {item.score})"
+            f"{item.chunk.content}\n\n"
+        )
+    prompt = (
+        f"You are a helpful assistant that can answer questions about the context.\n\n\n"
+        f"-----------------------------------"
+        f"context:\n\n{context}\n"
+        f"-----------------------------------"
+        f"user_query: {query}\n"
+        f"-----------------------------------"
+        f"answer: "
+    )
+    result = await call_llm_async(prompt)
+    print(result)
 
 
 if __name__ == "__main__":
     # asyncio.run(create_arxiv_artifact_example())
     # asyncio.run(rebuild_index())
     import logging
-    logging.basicConfig(level=logging.INFO)
-    arxiv_id = "2507.21509?"
-    arxiv_id = "2507.13334"
-    asyncio.run(create_arxiv_artifact_s3_example(arxiv_id))
-    asyncio.run(retrieve_chunk(arxiv_id))
 
+    logging.basicConfig(level=logging.INFO)
+    # arxiv_id = "2507.21509"
+    arxiv_id = "2507.13334"
+    # asyncio.run(create_arxiv_artifact_s3_example(arxiv_id))
+    asyncio.run(retrieve_chunk(arxiv_id))
 
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())

@@ -353,5 +353,5 @@ class ChunkSearchResult(BaseModel):
     chunk: Chunk = Field(..., description="Chunk")
     pre_n_chunks: Optional[List[Chunk]] = Field(default_factory=list, description="Pre n chunk")
     next_n_chunks: Optional[List[Chunk]] = Field(default_factory=list, description="Next n chunk")
-    score: float = Field(..., description="Score")
+    score: float = Field(..., description="relevant Score")
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Creation timestamp")

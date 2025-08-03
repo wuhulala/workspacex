@@ -66,7 +66,7 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -
                 [{"role": "user", "content": prompt}]
             )
         use_time = time.time() - start_time
-        logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖")
+        logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖 -> {response.usage_metadata}")
         return response.content
     except Exception as e:    
         logging.error(f"Failed to call LLM: {e}")
@@ -84,7 +84,7 @@ def get_llm_model(model_name: str = None, llm_config=None) -> ChatOpenAI:
         api_key=os.environ.get('LLM_API_KEY'),
         base_url=os.environ.get('LLM_BASE_URL'),
         model=model_name if model_name else os.environ.get('LLM_MODEL'),
-        timeout=llm_config.get('timeout', 20),
+        timeout=llm_config.get('timeout', 60),
         max_retries=llm_config.get('max_retries', 2),
         max_tokens=llm_config.get('max_tokens', 4096),
         temperature=llm_config.get('temperature', 0.5),
