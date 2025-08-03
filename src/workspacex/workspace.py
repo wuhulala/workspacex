@@ -16,7 +16,7 @@ from workspacex.code_artifact import CodeArtifact
 from workspacex.embedding.base import EmbeddingFactory
 from workspacex.fulltext.dbs.base import FulltextDB, FulltextSearchResult
 from workspacex.fulltext.factory import FulltextDBFactory
-from workspacex.noval_artifact import NovelArtifact
+from workspacex.novel_artifact import NovelArtifact
 from workspacex.observer import WorkspaceObserver, get_observer
 from workspacex.reranker.base import RerankResult
 from workspacex.reranker.factory import RerankerFactory
