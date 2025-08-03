@@ -9,7 +9,7 @@ from tqdm import tqdm
 from workspacex.artifact import Artifact, ArtifactType, Chunk
 from workspacex.utils.logger import logger
 from workspacex.utils.timeit import timeit
-from .base import BaseRepository
+from .base import BaseRepository, CommonEncoder
 
 
 class S3Repository(BaseRepository):
@@ -64,7 +64,7 @@ class S3Repository(BaseRepository):
             self.fs.move(self.index_path, version_path)
         content_type = self.guess_content_type(self.index_path)
         with self.fs.open(self.index_path, 'w', ContentType=content_type) as f:
-            json.dump(index, f, indent=2, ensure_ascii=False)
+            json.dump(index, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 
     @timeit(logger.info,
             "S3Repository._load_index took {elapsed_time:.3f} seconds")
@@ -130,8 +130,9 @@ class S3Repository(BaseRepository):
             file_path = self._full_path(self._attachment_file_path(artifact.artifact_id, file.file_name))
             content_type = self.guess_content_type(file_path)
             with self.fs.open(file_path, "wb", ContentType=content_type) as f:
-                f.write(file.file_content)
-                logger.info(f"Artifact {artifact.artifact_id} saved attachment file {file_path.as_posix()}")
+                with open(file.file_path, "rb") as src:
+                    f.write(src.read())
+                logger.info(f"Artifact {artifact.artifact_id} saved attachment file {file_path}")
         logger.info(f"Artifact {artifact.artifact_id} saved {len(artifact.attachment_files)} attachment files")
 
     def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content):

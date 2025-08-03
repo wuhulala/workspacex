@@ -288,6 +288,7 @@ class WorkSpace(BaseModel):
             artifact = ArxivArtifact(
                 arxiv_id=kwargs.get('arxiv_id')
             )
+            await artifact.process_arxiv()
 
         else:
             artifact = Artifact(

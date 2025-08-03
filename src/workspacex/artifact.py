@@ -76,7 +76,7 @@ class AttachmentFile(BaseModel):
     file_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="File ID")
     file_name: str = Field(default=None, description="File name")
     file_desc: str = Field(default_factory=lambda: str(uuid.uuid4()), description="File description")
-    file_path: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Temp File path")
+    file_path: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Temp File path", exclude=True)
 
 class Artifact(BaseModel):
     """

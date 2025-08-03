@@ -49,7 +49,7 @@ class LocalPathRepository(BaseRepository):
             version_path = self.versions_dir / version_name
             self.index_path.replace(version_path)
         with open(self.index_path, 'w', encoding='utf-8') as f:
-            json.dump(index, f, indent=2, ensure_ascii=False)
+            json.dump(index, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
 
     def _load_index(self) -> Dict[str, Any]:
         """
@@ -130,10 +130,11 @@ class LocalPathRepository(BaseRepository):
             return
         for file in tqdm(artifact.attachment_files.values(), desc="save_attachment_files"):
             file_path = self._full_path(self._attachment_file_path(artifact.artifact_id, file.file_name))
-            file_path.mkdir(parents=True, exist_ok=True)
-            with open(file_path, "wb") as f:
-                f.write(file.file_content)
-                logger.info(f"Artifact {artifact.artifact_id} saved attachment file {file_path.as_posix()}")
+            # Create parent directory for the file, not the file itself
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            # Copy file from source path to destination
+            shutil.copy2(file.file_path, file_path)
+            logger.info(f"Artifact {artifact.artifact_id} saved attachment file {file_path.as_posix()}")
         logger.info(f"Artifact {artifact.artifact_id} saved {len(artifact.attachment_files)} attachment files")
 
     def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta,save_sub_list_content ):

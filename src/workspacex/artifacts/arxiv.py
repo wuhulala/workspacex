@@ -1,4 +1,3 @@
-import asyncio
 import zipfile
 from pathlib import Path
 
@@ -31,7 +30,7 @@ class ArxivArtifact(Artifact):
 
         return ChunkerFactory.get_chunker(chunk_config)
 
-    async def _process_arxiv(self):
+    async def process_arxiv(self):
         """
         Process arXiv paper: download PDF, convert to markdown, and chunk the content
         
@@ -59,46 +58,41 @@ class ArxivArtifact(Artifact):
         extract_dir = Path(temp_file_path).parent
         with zipfile.ZipFile(markdown_zip_file_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
-        
+
         # Find the markdown file in the extracted directory
         markdown_file_path = None
         for file_path in extract_dir.rglob("*.markdown"):
             markdown_file_path = file_path
             break
-        
+
         if not markdown_file_path:
             # Try to find .md files as fallback
             for file_path in extract_dir.rglob("*.md"):
                 markdown_file_path = file_path
                 break
-        
+
         if not markdown_file_path:
             raise FileNotFoundError(f"❌ No markdown file found in extracted zip: {markdown_zip_file_path}")
-        
+
         logger.info(f"📝 Found markdown file: {markdown_file_path}")
-        
+
         # 4. Read markdown content
         with open(markdown_file_path, 'r', encoding='utf-8') as f:
             markdown_content = f.read()
-        
+
         logger.info(f"📖 Read markdown content, length: {len(markdown_content)} characters")
-        
+
         # 5. Set the markdown content as artifact content
-        self.content = markdown_content
+        # self.content = markdown_content
         self.add_attachment_file(AttachmentFile(
             file_name="result.md",
-            file_desc="Markdown content file", 
+            file_desc="Markdown content file",
             file_path=str(markdown_file_path)
         ))
         logger.info(f"📎 Added markdown content attachment, total attachments: {len(self.attachment_files)}")
 
         self.mark_complete()
-        
+
         logger.info(f"✅ Successfully processed arXiv paper {self.arxiv_id}")
 
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    artifact = ArxivArtifact(arxiv_id="2507.21509")
-    asyncio.run(artifact._process_arxiv())
     
