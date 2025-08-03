@@ -95,7 +95,7 @@ async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 102
                 field[1].close()
 
 
-async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None) -> Tuple[str, str]:
+async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None, page_count: int = -1) -> Tuple[str, str]:
     """
     Parse PDF file and save the returned zip file
     
@@ -119,8 +119,9 @@ async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None) -> Tuple[
     """
     # Get PDF page count before uploading
     try:
-        page_count = get_pdf_page_count(pdf_file_path)
-        print(f"📄 PDF has {page_count} pages")
+        if page_count < 0:
+            page_count = get_pdf_page_count(pdf_file_path)
+        print(f"📄 PDF resolve {page_count} pages")
     except Exception as e:
         print(f"⚠️ Warning: Could not get page count: {e}")
         page_count = 0
@@ -137,7 +138,7 @@ async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None) -> Tuple[
     data.add_field('page_range', f'0-{page_count-1}')
     data.add_field('force_ocr', 'false')
     data.add_field('paginate_output', 'false')
-    data.add_field('output_format', 'chunks')
+    data.add_field('output_format', 'markdown')
     
     # Add file with streaming to avoid memory overflow
     filename = Path(pdf_file_path).name

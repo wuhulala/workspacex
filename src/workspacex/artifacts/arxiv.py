@@ -10,16 +10,25 @@ from workspacex.utils.logger import logger
 
 class ArxivArtifact(Artifact):
 
-    def __init__(self, arxiv_id: str, **kwargs):
+    def __init__(self, arxiv_id: str, page_count:int = -1, **kwargs):
         artifact_id = f"arxiv_{arxiv_id}"
         metadata = {
-            "arxiv_id": arxiv_id
+            "arxiv_id": arxiv_id,
+            "page_count": page_count
         }
         super().__init__(artifact_id =artifact_id, content="", artifact_type=ArtifactType.ARXIV, metadata=metadata, **kwargs)
 
     @property
     def arxiv_id(self):
         return self.metadata.get('arxiv_id')
+
+    @property
+    def page_count(self):
+        return self.metadata.get('page_count', -1)
+
+    @page_count.setter
+    def page_count(self, page_count: int):
+        self.metadata['page_count'] = page_count
 
     @property
     def chunker(self):
@@ -29,6 +38,9 @@ class ArxivArtifact(Artifact):
         )
 
         return ChunkerFactory.get_chunker(chunk_config)
+
+    def after_chunker(self):
+        self.content = ""
 
     async def process_arxiv(self):
         """
@@ -47,7 +59,7 @@ class ArxivArtifact(Artifact):
         logger.info(f"📎 Added PDF attachment, total attachments: {len(self.attachment_files)}")
 
         # 2. call api resolve pdf as markdown
-        markdown_zip_filename, markdown_zip_file_path = await pdf.parse_pdf_to_zip(temp_file_path)
+        markdown_zip_filename, markdown_zip_file_path = await pdf.parse_pdf_to_zip(temp_file_path, page_count=self.page_count)
         logger.info(f"📄 Parsed PDF to markdown {markdown_zip_file_path}")
         if not markdown_zip_filename:
             raise ValueError("❌parse_pdf_to_zip No markdown zip file found")
@@ -55,13 +67,14 @@ class ArxivArtifact(Artifact):
         logger.info(f"📎 Added markdown zip attachment, total attachments: {len(self.attachment_files)}")
 
         # 3. unzip zipfile, get converted_content.markdown file
-        extract_dir = Path(temp_file_path).parent
+        extract_dir = Path(temp_file_path).parent / f"extracted_{self.arxiv_id}"
+        extract_dir.mkdir(exist_ok=True)
         with zipfile.ZipFile(markdown_zip_file_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
 
         # Find the markdown file in the extracted directory
         markdown_file_path = None
-        for file_path in extract_dir.rglob("*.markdown"):
+        for file_path in extract_dir.rglob("converted_content.markdown"):
             markdown_file_path = file_path
             break
 
@@ -80,6 +93,7 @@ class ArxivArtifact(Artifact):
         with open(markdown_file_path, 'r', encoding='utf-8') as f:
             markdown_content = f.read()
 
+        self.content = markdown_content
         logger.info(f"📖 Read markdown content, length: {len(markdown_content)} characters")
 
         # 5. Set the markdown content as artifact content

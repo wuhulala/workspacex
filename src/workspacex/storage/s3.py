@@ -197,24 +197,26 @@ class S3Repository(BaseRepository):
         chunk = Chunk.model_validate_json(chunk_content)
         pre_n_chunks = []
         next_n_chunks = []
-        for i in range(pre_n):
-            if chunk_index - i - 1 < 0:
-                break
-            pre_n_chunk_file_name = chunk.pre_n_chunk_file_name(i + 1)
-            pre_n_chunk_file_path = f"{chunk_dir}/{pre_n_chunk_file_name}"
-            if self.fs.exists(pre_n_chunk_file_path):
-                with self.fs.open(pre_n_chunk_file_path, "r") as f:
-                    pre_n_chunk_content = f.read()
-                    pre_n_chunk = Chunk.model_validate_json(pre_n_chunk_content)
-                    pre_n_chunks.append(pre_n_chunk)
-        for i in range(next_n):
-            next_n_chunk_file_name = chunk.next_n_chunk_file_name(i + 1)
-            next_n_chunk_file_path = f"{chunk_dir}/{next_n_chunk_file_name}"
-            if self.fs.exists(next_n_chunk_file_path):
-                with self.fs.open(next_n_chunk_file_path, "r") as f:
-                    next_n_chunk_content = f.read()
-                    next_n_chunk = Chunk.model_validate_json(next_n_chunk_content)
-                    next_n_chunks.append(next_n_chunk)
+        if pre_n > 0:
+            for i in range(pre_n):
+                if chunk_index - i - 1 < 0:
+                    break
+                pre_n_chunk_file_name = chunk.pre_n_chunk_file_name(i + 1)
+                pre_n_chunk_file_path = f"{chunk_dir}/{pre_n_chunk_file_name}"
+                if self.fs.exists(pre_n_chunk_file_path):
+                    with self.fs.open(pre_n_chunk_file_path, "r") as f:
+                        pre_n_chunk_content = f.read()
+                        pre_n_chunk = Chunk.model_validate_json(pre_n_chunk_content)
+                        pre_n_chunks.append(pre_n_chunk)
+        if next_n >0:
+            for i in range(next_n):
+                next_n_chunk_file_name = chunk.next_n_chunk_file_name(i + 1)
+                next_n_chunk_file_path = f"{chunk_dir}/{next_n_chunk_file_name}"
+                if self.fs.exists(next_n_chunk_file_path):
+                    with self.fs.open(next_n_chunk_file_path, "r") as f:
+                        next_n_chunk_content = f.read()
+                        next_n_chunk = Chunk.model_validate_json(next_n_chunk_content)
+                        next_n_chunks.append(next_n_chunk)
         return pre_n_chunks, chunk, next_n_chunks
 
     def get_chunks(self, artifact_id: str, parent_id: str) -> Optional[list[Chunk]]:

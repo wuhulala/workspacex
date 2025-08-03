@@ -286,7 +286,8 @@ class WorkSpace(BaseModel):
             if 'arxiv_id' not in kwargs:
                 raise ValueError("novel_file_path must be provided for NOVEL artifact type")
             artifact = ArxivArtifact(
-                arxiv_id=kwargs.get('arxiv_id')
+                arxiv_id=kwargs.get('arxiv_id'),
+                page_count=kwargs.get('page_count', -1)
             )
             await artifact.process_arxiv()
 
@@ -322,11 +323,15 @@ class WorkSpace(BaseModel):
         """
         # Check if artifact ID already exists
         existing_artifact = self._get_artifact(artifact.artifact_id)
-        logger.info(f"🔍 add_artifact {artifact.artifact_id} {existing_artifact}")
         if existing_artifact:
-            raise ValueError(f"Artifact with ID {artifact.artifact_id} already exists")
-        # Add to workspace
-        self.artifacts.append(artifact)
+            self._update_artifact(artifact)
+            await self._notify_observers("update", artifact)
+        else:
+            # Add to workspace
+            self.artifacts.append(artifact)
+
+            await self._notify_observers("create", artifact)
+
         # Store in repository
         await self._store_artifact(artifact)
 
@@ -336,7 +341,13 @@ class WorkSpace(BaseModel):
         # Save workspace state to create new version
         self.save()
 
-        await self._notify_observers("create", artifact)
+
+    def _update_artifact(self, artifact: Artifact) -> None:
+        for i, a in enumerate(self.artifacts):
+            if a.artifact_id == artifact.artifact_id:
+                self.artifacts[i] = artifact
+                logger.info(f"[📂WORKSPACEX]🔄 Updating artifact in repository: {artifact.artifact_id}")
+                break
 
     async def update_artifact(
             self,
@@ -483,6 +494,7 @@ class WorkSpace(BaseModel):
                 
                 if chunks:
                     await self.save_artifact_chunks(artifact, chunks)
+                    artifact.after_chunk()
                     return chunks
                 else:
                     logger.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
@@ -498,6 +510,9 @@ class WorkSpace(BaseModel):
             return artifact.chunker
         return self.chunker
 
+    async def rebuild_index(self):
+        await self.rebuild_fulltext()
+        await self.rebuild_embedding()
 
     async def rebuild_embedding(self):
         for artifact in tqdm(self.artifacts, desc="workspace_rebuild_embedding"):
@@ -976,21 +991,21 @@ class WorkSpace(BaseModel):
         if not search_query:
             logger.warning("🔍 retrieve_chunk search_query is None")
             return None
-        
+
         if not search_query.limit:
             search_query.limit = 10
-        
-        if not search_query.threshold:
+
+        if not search_query.threshold and search_query.threshold != 0:
             search_query.threshold = 0.8
-        
-        if not search_query.pre_n:
+
+        if not search_query.pre_n and search_query.pre_n != 0:
             search_query.pre_n = 3
-        
-        if not search_query.next_n:
+
+        if not search_query.next_n and search_query.pre_n != 0:
             search_query.next_n = 3
 
         chunk_query_embedding = self.embedder.embed_query(search_query.query)
-        search_results = self.vector_db.search(self.default_vector_collection, [chunk_query_embedding], filter={}, threshold=search_query.threshold, limit=search_query.limit)
+        search_results = self.vector_db.search(self.default_vector_collection, [chunk_query_embedding], filter=search_query.filters, threshold=search_query.threshold, limit=search_query.limit)
         if not search_results:
             logger.warning("🔍 retrieve_chunk search_results is None")
             return None

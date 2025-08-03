@@ -80,9 +80,18 @@ class ChromaVectorDB(VectorDB):
         try:
             collection = self.client.get_collection(name=collection_name)
             if collection:
+                # Convert simple key-value filters to ChromaDB operator format
+                where_conditions = []
+                if filter:
+                    for key, value in filter.items():
+                        where_conditions.append({key: {"$eq": value}})
+                    where_filter = {"$and": where_conditions} if len(where_conditions) > 1 else where_conditions[0]
+                else:
+                    where_filter = None
+
                 result = collection.query(
                     query_embeddings=vectors,
-                    # where=filter,
+                    where=where_filter,
                     n_results=limit,
                 )
 
@@ -302,7 +311,14 @@ class ChromaVectorDB(VectorDB):
                 if ids:
                     collection.delete(ids=ids)
                 elif filter:
-                    collection.delete(where=filter)
+                    where_conditions = []
+                    if filter:
+                        for key, value in filter.items():
+                            where_conditions.append({key: {"$eq": value}})
+                        where_filter = {"$and": where_conditions} if len(where_conditions) > 1 else where_conditions[0]
+                    else:
+                        where_filter = None
+                    collection.delete(where=where_filter)
                 else:
                     self.client.delete_collection(name=collection_name)
         except Exception as e:

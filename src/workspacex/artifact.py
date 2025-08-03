@@ -308,6 +308,9 @@ class Artifact(BaseModel):
             self.metadata['attachment_files'] = {}
         self.metadata['attachment_files'][file.file_id] = file
 
+    def after_chunker(self):
+        pass
+
 
 class SummaryArtifact(Artifact):
 
@@ -341,6 +344,7 @@ class ChunkSearchQuery(BaseModel):
     threshold: float = Field(default=0.8, description="Threshold")
     pre_n: int = Field(default=3, description="Pre n")
     next_n: int = Field(default=3, description="Next n")
+    filters: dict = Field(default_factory=dict, description="filters")
 
 class ChunkSearchResult(BaseModel):
     """
