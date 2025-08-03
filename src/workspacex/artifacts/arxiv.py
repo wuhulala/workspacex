@@ -22,6 +22,15 @@ class ArxivArtifact(Artifact):
     def arxiv_id(self):
         return self.metadata.get('arxiv_id')
 
+    @property
+    def chunker(self):
+        chunk_config = ChunkConfig(
+            enabled=True,
+            provider="markdown"
+        )
+
+        return ChunkerFactory.get_chunker(chunk_config)
+
     async def _process_arxiv(self):
         """
         Process arXiv paper: download PDF, convert to markdown, and chunk the content
@@ -82,20 +91,7 @@ class ArxivArtifact(Artifact):
             file_path=str(markdown_file_path)
         ))
         logger.info(f"📎 Added markdown content attachment, total attachments: {len(self.attachment_files)}")
-        
-        # 6. Create chunks using character-based chunker
-        chunk_config = ChunkConfig(
-            enabled=True,
-            provider="markdown"
-        )
-        
-        chunker = ChunkerFactory.get_chunker(chunk_config)
-        chunks = await chunker.chunk(self)
-        
-        logger.info(f"✂️ Created {len(chunks)} chunks from markdown content")
-        
-        # 7. Mark artifact as chunkable and complete
-        self.mark_chunkable()
+
         self.mark_complete()
         
         logger.info(f"✅ Successfully processed arXiv paper {self.arxiv_id}")

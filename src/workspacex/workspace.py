@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from workspacex.artifact import ArtifactType, Artifact, Chunk, ChunkSearchQuery, ChunkSearchResult, HybridSearchResult, \
     HybridSearchQuery
+from workspacex.artifacts.arxiv import ArxivArtifact
 from workspacex.base import WorkspaceConfig
 from workspacex.chunk.base import ChunkerFactory
 from workspacex.code_artifact import CodeArtifact
@@ -240,7 +241,7 @@ class WorkSpace(BaseModel):
             artifact_id: Optional[str] = None,
             content: Optional[Any] = None,
             metadata: Optional[Dict[str, Any]] = None,
-            novel_file_path: Optional[str] = None
+            **kwargs
     ) -> List[Artifact]:
         """
         Create a new artifact
@@ -272,6 +273,7 @@ class WorkSpace(BaseModel):
         if artifact_type == ArtifactType.CODE:
             artifacts = CodeArtifact.from_code_content(artifact_type, content)
         elif artifact_type == ArtifactType.NOVEL:
+            novel_file_path = kwargs.get('novel_file_path')
             if not novel_file_path:
                 raise ValueError("novel_file_path must be provided for NOVEL artifact type")
             artifact = NovelArtifact(
@@ -280,6 +282,13 @@ class WorkSpace(BaseModel):
                 metadata=metadata,
                 artifact_id=artifact_id
             )
+        elif artifact_type == ArtifactType.ARXIV:
+            if 'arxiv_id' not in kwargs:
+                raise ValueError("novel_file_path must be provided for NOVEL artifact type")
+            artifact = ArxivArtifact(
+                arxiv_id=kwargs.get('arxiv_id')
+            )
+
         else:
             artifact = Artifact(
                 artifact_id=artifact_id,
@@ -464,9 +473,10 @@ class WorkSpace(BaseModel):
 
     async def _chunk_artifact(self, artifact: Artifact) -> Optional[list[Chunk]]:
         """Chunk artifact"""
-        if self.chunker:
+        chunker = self.get_chunker_by_artifact(artifact)
+        if chunker:
             try:
-                chunks = await self.chunker.chunk(artifact)
+                chunks = await chunker.chunk(artifact)
                 artifact.mark_chunkable()
                 logger.info(f"📦[CHUNKING]✅ store_artifact_chunk[{artifact.artifact_type}]:{artifact.artifact_id} chunks size: {len(chunks)}")
                 
@@ -481,6 +491,12 @@ class WorkSpace(BaseModel):
                 raise
         else:
             return []
+
+    def get_chunker_by_artifact(self, artifact):
+        if hasattr(artifact, "chunker"):
+            return artifact.chunker
+        return self.chunker
+
 
     async def rebuild_embedding(self):
         for artifact in tqdm(self.artifacts, desc="workspace_rebuild_embedding"):
