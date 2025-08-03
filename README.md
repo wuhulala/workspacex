@@ -18,6 +18,8 @@
 - **Full-Text Search**: Elasticsearch-based full-text search with Chinese analyzer support
 - **Reranking**: Local reranking using Qwen3-Reranker models
 - **HTTP Service**: FastAPI-based reranking service
+- **📎 Attachment Support**: Attach files to artifacts with metadata and descriptions
+- **📄 arXiv Integration**: Download and process arXiv papers with PDF parsing and markdown conversion
 
 ## Process
 
@@ -58,6 +60,74 @@ from workspacex import WorkSpace, ArtifactType
 if __name__ == '__main__':
     workspace = WorkSpace.from_local_storages(workspace_id="demo")
     asyncio.run(workspace.create_artifact(ArtifactType.TEXT, "artifact_001"))
+```
+
+### Attachment Support Example
+
+WorkspaceX supports **file attachments** for artifacts, allowing you to attach files with metadata and descriptions:
+
+```python
+import asyncio
+from workspacex import WorkSpace, ArtifactType
+from workspacex.artifact import AttachmentFile
+
+async def attachment_example():
+    workspace = WorkSpace(workspace_id="attachment_demo", clear_existing=True)
+    
+    # Create an artifact
+    artifacts = await workspace.create_artifact(
+        artifact_type=ArtifactType.TEXT,
+        content="This artifact has attached files"
+    )
+    artifact = artifacts[0]
+    
+    # Add attachment files
+    artifact.add_attachment_file(
+        AttachmentFile(
+            file_name="document.pdf",
+            file_desc="Important PDF document",
+            file_path="/path/to/document.pdf"
+        )
+    )
+    
+    # Save the artifact with attachments
+    await workspace.add_artifact(artifact)
+    
+    # Retrieve attachment information
+    print(f"📎 Attachments: {artifact.attachment_files_desc()}")
+
+# Run the example
+asyncio.run(attachment_example())
+```
+
+### arXiv Paper Processing Example
+
+WorkspaceX supports **arXiv paper processing** with automatic PDF download, parsing, and markdown conversion:
+
+```python
+import asyncio
+from workspacex import WorkSpace, ArtifactType
+
+async def arxiv_example():
+    workspace = WorkSpace(workspace_id="arxiv_demo", clear_existing=True)
+    
+    # Create an arXiv artifact by paper ID
+    artifacts = await workspace.create_artifact(
+        artifact_type=ArtifactType.ARXIV,
+        arxiv_id="2507.21509"  # arXiv paper ID
+    )
+    
+    arxiv_artifact = artifacts[0]
+    print(f"📄 Processed arXiv paper: {arxiv_artifact.arxiv_id}")
+    print(f"📎 Attachments: {len(arxiv_artifact.attachment_files)} files")
+    
+    # The artifact automatically includes:
+    # - Original PDF file
+    # - Converted markdown zip file
+    # - Parsed content for chunking and search
+
+# Run the example
+asyncio.run(arxiv_example())
 ```
 
 ### Parallel Processing Demo
@@ -103,12 +173,13 @@ For a complete performance comparison demo, see `src/examples/parallel_processin
 
 ### More Examples
 
-For more detailed examples on features like reranking, storage/embedding backends, hybrid search, and Chinese full-text search, please refer to the scripts in the `src/examples/` directory.
+For more detailed examples on features like reranking, storage/embedding backends, hybrid search, Chinese full-text search, attachment handling, and arXiv processing, please refer to the scripts in the `src/examples/` directory.
 
 To run an example:
 ```bash
 export PYTHONPATH=src
 python src/examples/embeddings/openai_example.py
+python src/examples/arxiv_example.py  # arXiv processing example
 ```
 
 
