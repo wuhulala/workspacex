@@ -109,6 +109,18 @@ class BaseRepository(ABC):
             The content of the sub-artifact as a string, or None if not found
         """
         pass
+    
+    @abstractmethod
+    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[str]:
+        """
+        Get the content of an attachment file by artifact ID and file name.
+        Args:
+            artifact_id: The ID of the artifact
+            file_name: The name of the file
+        Returns:
+            The content of the attachment file as a string, or None if not found
+        """
+        pass
 
     def _artifact_dir(self, artifact_id: str) -> str:
         """
@@ -168,6 +180,17 @@ class BaseRepository(ABC):
             Path to the artifact index file (as string)
         """
         return f"{self._artifact_dir(artifact_id)}/index.json"
+    
+    def _attachment_file_path(self, artifact_id: str, file_name: str) -> str:
+        """
+        Get the path for an attachment file.
+        Args:
+            artifact_id: Artifact ID
+            file_name: File name
+        Returns:	
+            Path to the attachment file (as string)
+        """
+        return f"{self._artifact_dir(artifact_id)}/attachment_files/{file_name}"
 
 
 class CommonEncoder(json.JSONEncoder):

@@ -74,5 +74,8 @@ class ChunkerFactory:
         elif config.provider == "sentence_token":
             from .sentence import SentenceTokenChunker
             return SentenceTokenChunker(config)
+        elif config.provider == "markdown":
+            from .markdown import MarkdownChunker
+            return MarkdownChunker(config)
         else:
             raise ValueError(f"Unsupported text splitter: {config.provider}")

@@ -95,7 +95,7 @@ class S3Repository(BaseRepository):
 
     @timeit(logger.info,
             "S3Repository.store_artifact took {elapsed_time:.3f} seconds")
-    def store_artifact(self, artifact: "Artifact", save_sub_list_content: bool = True) -> None:
+    def store_artifact(self, artifact: "Artifact", save_sub_list_content: bool = True, save_attachment_files: bool = True) -> None:
         artifact_id = artifact.artifact_id
         artifact_dir = self._full_path(self._artifact_dir(artifact_id))
         if not self.fs.exists(artifact_dir):
@@ -107,6 +107,8 @@ class S3Repository(BaseRepository):
         artifact_meta = artifact.to_dict()
         if save_sub_list_content:
             self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content)
+        if save_attachment_files:
+            self.save_attachment_files(artifact)
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         from workspacex.storage.local import CommonEncoder
         logger.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts")
@@ -117,6 +119,20 @@ class S3Repository(BaseRepository):
                       indent=2,
                       ensure_ascii=False,
                       cls=CommonEncoder)
+            
+    def save_attachment_files(self, artifact: "Artifact") -> None:
+        """
+        Save attachment files to the S3 bucket.
+        """
+        if not artifact.attachment_files:
+            return
+        for file in tqdm(artifact.attachment_files.values(), desc="save_attachment_files"):
+            file_path = self._full_path(self._attachment_file_path(artifact.artifact_id, file.file_name))
+            content_type = self.guess_content_type(file_path)
+            with self.fs.open(file_path, "wb", ContentType=content_type) as f:
+                f.write(file.file_content)
+                logger.info(f"Artifact {artifact.artifact_id} saved attachment file {file_path.as_posix()}")
+        logger.info(f"Artifact {artifact.artifact_id} saved {len(artifact.attachment_files)} attachment files")
 
     def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta, sub_artifacts_meta, save_sub_list_content):
         for sub in tqdm(artifact.sublist, desc="Uploading sub-artifacts"):
@@ -243,3 +259,13 @@ class S3Repository(BaseRepository):
             except Exception as e:
                 logger.error(f"🔍 store_artifact_chunks error: {e}")
                 raise e
+            
+    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[str]:
+        """
+        Get the content of an attachment file by artifact ID and file name.
+        """
+        file_path = self._full_path(self._attachment_file_path(artifact_id, file_name))
+        if self.fs.exists(file_path):
+            with self.fs.open(file_path, "rb") as f:
+                return f.read()
+        return None

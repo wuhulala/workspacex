@@ -102,7 +102,7 @@ class LocalPathRepository(BaseRepository):
         index["workspace"] = index_data
         self._save_index(index)
 
-    def store_artifact(self, artifact: "Artifact", save_sub_list_content: bool = True) -> None:
+    def store_artifact(self, artifact: "Artifact", save_sub_list_content: bool = True, save_attachment_files: bool = True) -> None:
         """
         Store an artifact and its sub-artifacts in the file system.
         Args:
@@ -116,9 +116,25 @@ class LocalPathRepository(BaseRepository):
         artifact_meta = artifact.to_dict()
         if save_sub_list_content:
             self.save_sub_artifact_content(artifact, artifact_id, artifact_meta, save_sub_list_content)
+        if save_attachment_files:
+            self.save_attachment_files(artifact)
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(artifact_meta, f, indent=2, ensure_ascii=False, cls=CommonEncoder)
+            
+    def save_attachment_files(self, artifact: "Artifact") -> None:
+        """
+        Save attachment files to the file system.
+        """
+        if not artifact.attachment_files:
+            return
+        for file in tqdm(artifact.attachment_files.values(), desc="save_attachment_files"):
+            file_path = self._full_path(self._attachment_file_path(artifact.artifact_id, file.file_name))
+            file_path.mkdir(parents=True, exist_ok=True)
+            with open(file_path, "wb") as f:
+                f.write(file.file_content)
+                logger.info(f"Artifact {artifact.artifact_id} saved attachment file {file_path.as_posix()}")
+        logger.info(f"Artifact {artifact.artifact_id} saved {len(artifact.attachment_files)} attachment files")
 
     def save_sub_artifact_content(self, artifact, artifact_id, artifact_meta,save_sub_list_content ):
         sub_artifacts_meta = []
@@ -248,3 +264,12 @@ class LocalPathRepository(BaseRepository):
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(chunk.model_dump_json(indent=2))
         
+    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[str]:
+        """
+        Get the content of an attachment file by artifact ID and file name.
+        """
+        file_path = self._full_path(self._attachment_file_path(artifact_id, file_name))
+        if file_path.exists():
+            with open(file_path, "rb") as f:
+                return f.read()
+        return None

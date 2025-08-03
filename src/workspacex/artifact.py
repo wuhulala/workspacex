@@ -26,6 +26,7 @@ class ArtifactType(Enum):
     CUSTOM = "CUSTOM"
     NOVEL = "NOVEL"
     CHUNK = "CHUNK"
+    ARXIV = "ARXIV"
 
 
 class ChunkMetadata(BaseModel):
@@ -70,6 +71,12 @@ class ArtifactStatus(Enum):
     COMPLETE = auto()   # Completed status
     EDITED = auto()     # Edited status
     ARCHIVED = auto()   # Archived status
+
+class AttachmentFile(BaseModel):
+    file_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="File ID")
+    file_name: str = Field(default=None, description="File name")
+    file_desc: str = Field(default_factory=lambda: str(uuid.uuid4()), description="File description")
+    file_path: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Temp File path")
 
 class Artifact(BaseModel):
     """
@@ -270,6 +277,37 @@ class Artifact(BaseModel):
     @summary.setter
     def summary(self, summary: str):
         self.metadata['summary'] = summary
+
+    @property
+    def attachment_files(self) -> Dict[str, AttachmentFile]:
+        """Get attachment files dictionary
+        
+        Returns:
+            Dict[str, AttachmentFile]: Dictionary of attachment files
+        """
+        if 'attachment_files' not in self.metadata:
+            self.metadata['attachment_files'] = {}
+        return self.metadata['attachment_files']
+    
+    def attachment_files_desc(self) -> Dict[str, str]:
+        """
+        desc for LLM to use
+        """
+        return {file.file_id: file.file_desc for file in self.attachment_files.values()}
+    
+    def get_attachment_file(self, file_id: str) -> Optional[AttachmentFile]:
+        return self.attachment_files.get(file_id)
+
+    def add_attachment_file(self, file: AttachmentFile):
+        """Add an attachment file to the artifact
+        
+        Args:
+            file (AttachmentFile): The attachment file to add
+        """
+        if 'attachment_files' not in self.metadata:
+            self.metadata['attachment_files'] = {}
+        self.metadata['attachment_files'][file.file_id] = file
+
 
 class SummaryArtifact(Artifact):
 
