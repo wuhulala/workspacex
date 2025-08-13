@@ -27,6 +27,7 @@ class ArtifactType(Enum):
     NOVEL = "NOVEL"
     CHUNK = "CHUNK"
     ARXIV = "ARXIV"
+    PDF = "PDF"
 
 
 class ChunkMetadata(BaseModel):
