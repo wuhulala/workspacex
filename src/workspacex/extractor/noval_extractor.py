@@ -18,19 +18,19 @@ class NovalExtractor(BaseExtractor):
         chapters, chapter_titles = self._load_and_split_novel(novel_file_path)
 
         artifacts = []
-        # Create subartifacts for each chapter
+        # Create sub-artifacts for each chapter
         for idx, (title, chapter) in enumerate(zip(chapter_titles, chapters)):
             sub_meta = {
                 "chapter_title": title,
                 "chapter_index": idx + 1
             }
-            subartifact = Artifact(
+            sub_artifact = Artifact(
                 artifact_id=f"chapter_{idx+1}_{title.replace(' ', '')}",
-                artifact_type=ArtifactType.NOVEL,
+                artifact_type=ArtifactType.NOVEL_CHAPTER,
                 content=chapter,
                 metadata=sub_meta
             )
-            artifacts.append(subartifact)
+            artifacts.append(sub_artifact)
         return artifacts
 
     async def async_extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
