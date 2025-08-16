@@ -45,7 +45,7 @@ def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {
     
 
 
-async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -> str:
+async def call_llm_async(prompt: str, model_name: str = None, llm_config=None, system_prompt: str = None) -> str:
     if llm_config is None:
         llm_config = {}
 
@@ -57,13 +57,24 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None) -
     try:
         start_time = time.time()
         llm_model = get_llm_model(model_name, llm_config)
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        log_msg = f"📝 LLM[{llm_model.model_name}] request prompt:\n"
+        for idx, msg in enumerate(messages):
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            log_msg += f"  [{idx}] ({role}): {content}\n"
+        logging.info(log_msg)
         if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
             response = await llm_model.ainvoke(
-                [{"role": "user", "content": prompt}],
+                messages,
                 config=RunnableConfig(callbacks=[langfuse.get_handler()]))
         else:
             response = await llm_model.ainvoke(
-                [{"role": "user", "content": prompt}]
+                messages
             )
         use_time = time.time() - start_time
         logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖 -> {response.usage_metadata}")

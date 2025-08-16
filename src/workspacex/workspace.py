@@ -809,7 +809,10 @@ class WorkSpace(BaseModel):
         return self._get_file_content_by_artifact_id(artifact.artifact_id, artifact.parent_id)
 
     def _get_file_content_by_artifact_id(self, artifact_id: str, parent_id: str = None) -> Optional[str]:
-        return self.repository.get_subaritfact_content(artifact_id, parent_id)
+        if parent_id:
+            return self.repository.get_subaritfact_content(artifact_id, parent_id)
+        else:
+            return None
     
     #########################################################
     # Hybrid Search

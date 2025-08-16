@@ -26,14 +26,14 @@ class NovalExtractor(BaseExtractor):
             }
             subartifact = Artifact(
                 artifact_id=f"chapter_{idx+1}_{title.replace(' ', '')}",
-                artifact_type=ArtifactType.TEXT,
+                artifact_type=ArtifactType.NOVEL,
                 content=chapter,
                 metadata=sub_meta
             )
             artifacts.append(subartifact)
         return artifacts
 
-    async def async_extract(self, content: Any) -> Optional[list[Artifact]]:
+    async def async_extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
         pass
 
     def _load_and_split_novel(self, novel_file_path: str) -> tuple[List[str], List[str]]:

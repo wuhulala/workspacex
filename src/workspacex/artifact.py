@@ -26,6 +26,7 @@ class ArtifactType(Enum):
     CUSTOM = "CUSTOM"
     NOVEL = "NOVEL"
     CHUNK = "CHUNK"
+    NOVEL_CHAPTER = "NOVEL_CHAPTER"
     ARXIV = "ARXIV"
     PDF = "PDF"
 
