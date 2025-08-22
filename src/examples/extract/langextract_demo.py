@@ -3,6 +3,37 @@ import os
 
 from dotenv import load_dotenv
 from langextract.factory import ModelConfig
+import langextract as lx
+
+import textwrap
+
+from workspacex.artifact import Artifact, ArtifactType
+from workspacex.extractor.langextractor import LangExtractor
+
+# 1. Define the prompt and extraction rules
+prompt = textwrap.dedent("""\
+        请从下面的小说片段中抽取人物实体信息。
+
+========== 要求说明 ============
+需要抽取的信息包括：
+1. 基本信息：姓名、别名、称号、性别
+
+============ 规则要求 ==============
+1. 只抽取确定存在的信息，不要推测
+2. 人物名称必须在原文中明确出现
+3. 属性信息需要有原文依据
+4. 如果没有符合条件的数据，则不输出
+5. 如果有多个人物，则输出多条数据
+
+========== 输出格式 =========
+[
+    {{
+        "name": "人物名称",
+        "type": "人物",
+        "original_text": "原文描述"
+    }}
+]
+    """)
 
 NOVEL_DEMO = """
 第0009章 凶威
@@ -82,94 +113,43 @@ NOVEL_DEMO = """
 　　而且那左臂的光芒越来越盛，最后凝结为一个古老的符号，像是有一头凶兽将要从那符文里窜出来！
 """
 
-
-async def run():
-    load_dotenv()
-    import langextract as lx
-
-    import textwrap
-
-    # 1. Define the prompt and extraction rules
-    prompt = textwrap.dedent("""\
-        请从下面的小说片段中抽取人物实体信息。
-
-========== 要求说明 ============
-需要抽取的信息包括：
-1. 基本信息：姓名、别名、称号、性别
-
-============ 规则要求 ==============
-1. 只抽取确定存在的信息，不要推测
-2. 人物名称必须在原文中明确出现
-3. 属性信息需要有原文依据
-4. 如果没有符合条件的数据，则不输出
-5. 如果有多个人物，则输出多条数据
-
-========== 输出格式 =========
-[
-    {{
-        "name": "人物名称",
-        "type": "人物",
-        "original_text": "原文描述"
-    }}
-]
-    """)
-
-    result = lx.extract(
-        text_or_documents=NOVEL_DEMO,
-        prompt_description=prompt,
-        examples=[
-            lx.data.ExampleData(
-                text=textwrap.dedent("""\
+examples = [
+    lx.data.ExampleData(
+        text=textwrap.dedent("""\
                 ROMEO. But soft! What light through yonder window breaks?
                 It is the east, and Juliet is the sun.
                 JULIET. O Romeo, Romeo! Wherefore art thou Romeo?"""),
-                extractions=[
-                    lx.data.Extraction(
-                        extraction_class="character",
-                        extraction_text="ROMEO",
-                        attributes={"emotional_state": "wonder"}
-                    ),
-                    lx.data.Extraction(
-                        extraction_class="relationship",
-                        extraction_text="Juliet is the sun",
-                        attributes={"type": "metaphor", "character_1": "Romeo", "character_2": "Juliet"}
-                    ),
-                    lx.data.Extraction(
-                        extraction_class="character",
-                        extraction_text="JULIET",
-                        attributes={"emotional_state": "yearning"}
-                    ),
-                    lx.data.Extraction(
-                        extraction_class="emotion",
-                        extraction_text="Wherefore art thou Romeo?",
-                        attributes={"feeling": "longing question", "character": "Juliet"}
-                    ),
-                ]
-            )
-        ],
-
-        config=ModelConfig(
-            model_id=os.environ.get("LLM_MODEL"),  # Automatically selects OpenAI provider
-            provider="openai",
-            provider_kwargs={
-                "api_key": os.environ.get('LLM_API_KEY'),
-                "base_url": os.environ.get("LLM_BASE_URL"),
-            }
-        ),
-        fence_output=False,
-        use_schema_constraints=False
+        extractions=[
+            lx.data.Extraction(
+                extraction_class="character",
+                extraction_text="ROMEO",
+                attributes={"emotional_state": "wonder"}
+            ),
+            lx.data.Extraction(
+                extraction_class="relationship",
+                extraction_text="Juliet is the sun",
+                attributes={"type": "metaphor", "character_1": "Romeo", "character_2": "Juliet"}
+            ),
+            lx.data.Extraction(
+                extraction_class="character",
+                extraction_text="JULIET",
+                attributes={"emotional_state": "yearning"}
+            ),
+            lx.data.Extraction(
+                extraction_class="emotion",
+                extraction_text="Wherefore art thou Romeo?",
+                attributes={"feeling": "longing question", "character": "Juliet"}
+            ),
+        ]
     )
+]
 
-    # Save the results to a JSONL file
-    lx.io.save_annotated_documents([result], output_name="extraction_results.jsonl", output_dir=".")
 
-    # Generate the visualization from the file
-    html_content = lx.visualize("extraction_results.jsonl")
-    with open("visualization.html", "w") as f:
-        if hasattr(html_content, 'data'):
-            f.write(html_content.data)  # For Jupyter/Colab
-        else:
-            f.write(html_content)
+async def run():
+    load_dotenv()
+    artifact = Artifact(content=NOVEL_DEMO, artifact_id="123", artifact_type=ArtifactType.TEXT)
+    result = await LangExtractor(name="character", prompt=prompt, examples=examples).async_extract(artifact)
+    print(result)
 
 
 if __name__ == '__main__':

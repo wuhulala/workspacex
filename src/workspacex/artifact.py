@@ -29,6 +29,7 @@ class ArtifactType(Enum):
     NOVEL_CHAPTER = "NOVEL_CHAPTER"
     ARXIV = "ARXIV"
     PDF = "PDF"
+    LANGEXTRACT = "LANGEXTRACT"
 
 
 class ChunkMetadata(BaseModel):

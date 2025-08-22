@@ -272,6 +272,7 @@ async def run():
     combined_result = lx.extract(
         text_or_documents=NOVEL_DEMO,
         prompt_description=combined_prompt,
+        max_char_buffer=3072,
         examples=combined_examples,
         config=ModelConfig(
             model_id=os.environ.get("LLM_MODEL"),
