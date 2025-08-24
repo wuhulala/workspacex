@@ -15,7 +15,7 @@ class BaseExtractor(ABC):
     """
 
     @abstractmethod
-    def extract(self, content: Any) -> Optional[list[Artifact]]:
+    def extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
         """Extract artifacts from content."""
         raise NotImplementedError
 
@@ -32,7 +32,7 @@ class BaseLLMExtractor(BaseExtractor):
         self.format_json = format_json
         self.extract_type = extract_type
 
-    def extract(self, content: Any, llm_config: dict[str, Any] = None) -> list[Artifact]:
+    def extract(self, content: Any, llm_config: dict[str, Any] = None, **kwargs) -> list[Artifact]:
         try:
             extracted_data = self.extract_by_llm(content, llm_config)
             artifact = Artifact(
@@ -58,7 +58,7 @@ class BaseLLMExtractor(BaseExtractor):
         else:
             return llm_result
 
-    async def async_extract(self, content: Any, llm_config: dict[str, Any] = None) -> list[Artifact]:
+    async def async_extract(self, content: Any, llm_config: dict[str, Any] = None, **kwargs) -> list[Artifact]:
         try:
             extracted_data = await self.extract_by_llm_async(content, llm_config)
             artifact = Artifact(
@@ -99,7 +99,7 @@ class BaseJudgeLLMExtractor(BaseLLMExtractor):
         self.judge_prompt = judge_prompt
         self.format_judge_json = format_judge_json
 
-    def extract(self, content: Any, llm_config: dict[str, Any] = None) -> list[Artifact]:
+    def extract(self, content: Any, llm_config: dict[str, Any] = None, **kwargs) -> list[Artifact]:
         artifacts = []
         try:
             extracted_data = self.extract_by_llm(content, llm_config)
@@ -120,7 +120,7 @@ class BaseJudgeLLMExtractor(BaseLLMExtractor):
             logging.error(f"Error is {e}, \n trace is {traceback.format_exc()}")
             raise
 
-    async def async_extract(self, content: Any, llm_config: dict[str, Any] = None) -> list[Artifact]:
+    async def async_extract(self, content: Any, llm_config: dict[str, Any] = None, **kwargs) -> list[Artifact]:
         try:
             extracted_data = await self.extract_by_llm_async(content, llm_config)
             judge_data = await self.async_judge(extracted_data)

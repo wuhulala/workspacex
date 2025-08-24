@@ -11,7 +11,7 @@ class NovalExtractor(BaseExtractor):
     Loads a novel file, splits it by chapters, 
     """
     
-    def extract(self, content: Any) -> Optional[list[Artifact]]:
+    def extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
         """Extract artifacts from content."""
         novel_file_path = content
 
