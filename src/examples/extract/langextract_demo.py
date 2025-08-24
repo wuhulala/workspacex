@@ -147,8 +147,7 @@ examples = [
 
 async def run():
     load_dotenv()
-    artifact = Artifact(content=NOVEL_DEMO, artifact_id="123", artifact_type=ArtifactType.TEXT)
-    result = await LangExtractor(name="character", prompt=prompt, examples=examples).async_extract(artifact)
+    result = await LangExtractor(name="character", prompt=prompt, examples=examples).async_extract(content=NOVEL_DEMO,artifact_id="123", artifact_type=ArtifactType.TEXT)
     print(result)
 
 

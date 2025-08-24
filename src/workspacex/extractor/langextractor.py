@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from langextract import data_lib
 from langextract.factory import ModelConfig
@@ -30,25 +30,40 @@ class LangExtractor(BaseExtractor):
             }
         )
 
-    async def async_extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
-        if not isinstance(content, Artifact):
-            logger.warning(f"content must be Artifact, but got {type(content)}")
-            return None
+    async def async_extract(self, content: Any, llm_config: Dict[str, Any] = None, **kwargs) -> Optional[list[Artifact]]:
+
+        if llm_config:
+            model_config = ModelConfig(
+                model_id=llm_config.get("llm_model", os.environ.get("LLM_MODEL")),
+                # Automatically selects OpenAI provider
+                provider="openai",
+                provider_kwargs={
+                    "api_key": os.environ.get('LLM_API_KEY'),
+                    "base_url": os.environ.get("LLM_BASE_URL"),
+                    "timeout": llm_config.get("timeout", 30),
+                    "max_tokens": llm_config.get("max_tokens", 2048),
+                    "temperature": llm_config.get("temperature", 0),
+                }
+            )
+        else:
+            model_config = self.model_config
+
         result = self.lx.extract(
-            text_or_documents=content.content,
+            text_or_documents=content,
             prompt_description=self.prompt,
             examples=self.examples,
-            config=self.model_config,
+            config=model_config,
             fence_output=False,
             use_schema_constraints=False,
             # resolver_params={
             #     "fence_output": True
             # }
         )
+        artifact_id = kwargs.get("artifact_id", "unknown")
 
         doc_dict = data_lib.annotated_document_to_dict(result)
-        logger.info(f"Extracted {self.name} from {content.artifact_id} finished")
-        langextract_artifact = LangExtractorArtifact(origin_artifact_id=content.artifact_id, extract_type=self.name,content=doc_dict)
+        logger.info(f"Extracted {self.name} from {artifact_id} finished")
+        langextract_artifact = LangExtractorArtifact(origin_artifact_id=artifact_id, extract_type=self.name,content=doc_dict)
         return [langextract_artifact]
 
     def extract(self, content: Any, **kwargs) -> Optional[list[Artifact]]:
