@@ -48,7 +48,7 @@ class LangExtractor(BaseExtractor):
         else:
             model_config = self.model_config
 
-        result = self.lx.extract(
+        result = await asyncio.to_thread(self.lx.extract,
             text_or_documents=content,
             prompt_description=self.prompt,
             examples=self.examples,
