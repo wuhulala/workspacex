@@ -1,7 +1,7 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Optional, Union, Dict, Any
 
 import PyPDF2
 import aiohttp
@@ -67,6 +67,8 @@ async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 102
     
     # 1. upload pdf to server
     url = os.getenv("MARKER_API_URL")
+    if not url:
+        raise ValueError("❌ MARKER_API_URL environment variable not set")
     
     # Prepare form data with streaming
     data = aiohttp.FormData()
@@ -84,10 +86,15 @@ async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 102
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
+            async with session.post(url, data=data, timeout=300) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise ValueError(f"❌ API Error: HTTP {response.status} - {error_text}")
+                
                 result = await response.json()
-                print(result)
                 return result.get('content', '')  # Return the markdown content from response
+    except aiohttp.ClientError as e:
+        raise ValueError(f"❌ Connection error: {str(e)}")
     finally:
         # Ensure file is closed
         for field in data._fields:
@@ -95,16 +102,23 @@ async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 102
                 field[1].close()
 
 
-async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None, page_count: int = -1) -> Tuple[str, str]:
+async def parse_pdf_to_zip(
+    pdf_file_path: str, 
+    output_dir: str = None, 
+    page_count: int = -1,
+    timeout: int = 600
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Parse PDF file and save the returned zip file
     
     Args:
         pdf_file_path (str): Path to the PDF file to parse
         output_dir (str): Directory to save the zip file (default: same directory as PDF)
+        page_count (int): Number of pages to process (-1 for all pages)
+        timeout (int): Request timeout in seconds (default: 600 seconds/10 minutes)
         
     Returns:
-        str: Path to the saved zip file
+        Tuple[Optional[str], Optional[str]]: Tuple containing (zip_filename, zip_file_path) or (None, None) if failed
         
     Example:
         curl -X 'POST' \
@@ -132,6 +146,8 @@ async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None, page_coun
     
     # 1. upload pdf to server
     url = os.getenv("MARKER_API_URL")
+    if not url:
+        raise ValueError("❌ MARKER_API_URL environment variable not set")
     
     # Prepare form data with streaming
     data = aiohttp.FormData()
@@ -149,11 +165,21 @@ async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None, page_coun
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
+            async with session.post(url, data=data, timeout=timeout) as response:
                 # Check if response is successful
                 if response.status == 200:
-                    # Get the zip file content
-                    zip_content = await response.read()
+                    # Get the response content
+                    response_content = await response.read()
+                    
+                    # Check if response is actually a zip file by looking at the first few bytes
+                    if len(response_content) < 4 or response_content[:4] != b'PK\x03\x04':
+                        # Not a zip file, probably an error message
+                        try:
+                            error_text = response_content.decode('utf-8')
+                            print(f"❌ API returned error message instead of zip file: {error_text}")
+                        except UnicodeDecodeError:
+                            print(f"❌ API returned binary content instead of zip file (size: {len(response_content)} bytes)")
+                        return None, None
                     
                     # Determine output directory
                     if output_dir is None:
@@ -171,7 +197,7 @@ async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None, page_coun
                     
                     # Save zip file
                     with open(zip_path, 'wb') as f:
-                        f.write(zip_content)
+                        f.write(response_content)
                     
                     print(f"✅ Zip file saved to: {zip_path}")
                     return zip_filename, str(zip_path)
@@ -179,11 +205,21 @@ async def parse_pdf_to_zip(pdf_file_path: str, output_dir: str = None, page_coun
                     error_text = await response.text()
                     print(f"❌ Error: HTTP {response.status} - {error_text}")
                     return None, None
+    except aiohttp.ClientError as e:
+        print(f"❌ Connection error: {str(e)}")
+        return None, None
+    except asyncio.TimeoutError:
+        print(f"❌ Request timed out after {timeout} seconds")
+        return None, None
+    except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
+        return None, None
     finally:
         # Ensure file is closed
         for field in data._fields:
             if hasattr(field[1], 'close'):
                 field[1].close()
+
 
 if __name__ == '__main__':
     pdf_path = "/Users/xah/PycharmProjects/workspacex/src/examples/data/test.pdf"

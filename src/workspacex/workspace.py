@@ -17,7 +17,7 @@ from workspacex.code_artifact import CodeArtifact
 from workspacex.embedding.base import EmbeddingFactory
 from workspacex.fulltext.dbs.base import FulltextDB, FulltextSearchResult
 from workspacex.fulltext.factory import FulltextDBFactory
-from workspacex.novel_artifact import NovelArtifact
+from workspacex.artifacts.novel_artifact import NovelArtifact
 from workspacex.observer import WorkspaceObserver, get_observer
 from workspacex.reranker.base import RerankResult
 from workspacex.reranker.factory import RerankerFactory
@@ -276,7 +276,7 @@ class WorkSpace(BaseModel):
             novel_file_path = kwargs.get('novel_file_path')
             if not novel_file_path:
                 raise ValueError("novel_file_path must be provided for NOVEL artifact type")
-            artifact = NovelArtifact(
+            artifact = NovelArtifact.from_novel_file_path(
                 artifact_type=artifact_type,
                 novel_file_path=novel_file_path,
                 metadata=metadata,
@@ -284,12 +284,14 @@ class WorkSpace(BaseModel):
             )
         elif artifact_type == ArtifactType.ARXIV:
             if 'arxiv_id' not in kwargs:
-                raise ValueError("novel_file_path must be provided for NOVEL artifact type")
-            artifact = ArxivArtifact(
-                arxiv_id=kwargs.get('arxiv_id'),
-                page_count=kwargs.get('page_count', -1)
+                raise ValueError("arxiv_id must be provided for ARXIV artifact type")
+            artifact = ArxivArtifact.from_arxiv_id(
+                arxiv_id_or_url=kwargs.get('arxiv_id'),
+                page_count=kwargs.get('page_count', -1),
+                metadata=metadata,
+                artifact_id=artifact_id,
+                **kwargs
             )
-            await artifact.process_arxiv()
 
         else:
             artifact = Artifact(
@@ -298,13 +300,19 @@ class WorkSpace(BaseModel):
                 content=content,
                 metadata=metadata
             )
+
+
         if artifact:
             await self.add_artifact(artifact)
+            asyncio.create_task(artifact.post_process())
             return [artifact]
         
         if artifacts:
             for artifact in artifacts:
                 await self.add_artifact(artifact)
+                # Create async task for post-processing
+                asyncio.create_task(artifact.post_process())
+            
 
         return artifacts
 
@@ -1242,7 +1250,11 @@ class WorkSpace(BaseModel):
                 if not artifact_id:
                     continue
                 artifact_data = self.repository.retrieve_artifact(artifact_id)
-                artifacts.append(Artifact.from_dict(artifact_data))
+                from workspacex.artifacts.factory import ArtifactFactory
+                artifact = ArtifactFactory.from_dict(artifact_data)
+                if not artifact:
+                    continue
+                artifacts.append(artifact)
 
             return {
                 "artifacts": artifacts,

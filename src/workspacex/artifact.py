@@ -166,6 +166,19 @@ class Artifact(BaseModel):
         self.status = ArtifactStatus.ARCHIVED
         self._record_version("Artifact archived")
 
+    async def post_process(self) -> None:
+        """
+        Abstract method for post-processing the artifact
+        
+        This method should be implemented by subclasses to handle
+        specific processing logic for each artifact type.
+        
+        Returns:
+            None: Updates the artifact with processed content
+        """
+        # Default implementation - mark as complete
+        self.mark_complete()
+
     def get_version(self, index: int) -> Optional[Dict[str, Any]]:
         """Get version at the specified index"""
         if 0 <= index < len(self.version_history):
