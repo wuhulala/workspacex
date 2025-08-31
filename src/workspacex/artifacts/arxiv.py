@@ -25,9 +25,20 @@ class ArxivArtifact(BasePDFArtifact):
         Create an arXiv artifact from an arXiv ID
         """
         arxiv_id = ArxivArtifact._extract_arxiv_id(arxiv_id_or_url)
-        return ArxivArtifact(artifact_id=f"arxiv_{arxiv_id}",
-                             artifact_type=ArtifactType.ARXIV,
-                             metadata={"arxiv_id": arxiv_id, "page_count": page_count},
+        artifact_id = kwargs.pop("artifact_id", f"arxiv_{arxiv_id}")
+        if not artifact_id:
+            artifact_id = f"arxiv_{arxiv_id}"
+        metadata = kwargs.pop("metadata", {}).update({"arxiv_id": arxiv_id, "page_count": page_count})
+        if not metadata:
+            metadata = {"arxiv_id": arxiv_id, "page_count": page_count}
+        artifact_type = kwargs.pop("artifact_type", ArtifactType.ARXIV)
+        if not artifact_type:
+            artifact_type = ArtifactType.ARXIV
+
+        return ArxivArtifact(artifact_id=artifact_id,
+                             artifact_type=artifact_type,
+                             metadata=metadata,
+                             content=kwargs.pop("content", ""),
                              **kwargs)
 
 

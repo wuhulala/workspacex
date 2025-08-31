@@ -1,5 +1,6 @@
 import asyncio
 import os
+import threading
 import traceback
 import uuid
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import Dict, Any, Optional, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 from tqdm import tqdm
+
 
 from workspacex.artifact import ArtifactType, Artifact, Chunk, ChunkSearchQuery, ChunkSearchResult, HybridSearchResult, \
     HybridSearchQuery
@@ -123,6 +125,9 @@ class WorkSpace(BaseModel):
         self._reranker = None
         self._chunker = None
         self._embedder = None
+        
+        # Initialize lock for thread-safe operations
+        self._save_lock = threading.Lock()
         
         if clear_existing:
             if self.vector_db:
@@ -287,7 +292,7 @@ class WorkSpace(BaseModel):
                 raise ValueError("arxiv_id must be provided for ARXIV artifact type")
             artifact = ArxivArtifact.from_arxiv_id(
                 arxiv_id_or_url=kwargs.get('arxiv_id'),
-                page_count=kwargs.get('page_count', -1),
+                page_count=kwargs.pop('page_count', -1),
                 metadata=metadata,
                 artifact_id=artifact_id,
                 **kwargs
@@ -304,58 +309,118 @@ class WorkSpace(BaseModel):
 
         if artifact:
             await self.add_artifact(artifact)
-            asyncio.create_task(artifact.post_process())
+
+            # Create async task for post-processing
+            await self.process_artifact(artifact)
             return [artifact]
         
         if artifacts:
             for artifact in artifacts:
                 await self.add_artifact(artifact)
                 # Create async task for post-processing
-                asyncio.create_task(artifact.post_process())
+                await self.process_artifact(artifact)
             
 
         return artifacts
+
+    async def process_artifact(self, artifact: Artifact) -> None:
+
+        async def _process_artifact():
+            """Process artifact and update workspace"""
+            try:
+                logger.info(f"📦[POST-PROCESSING]🔄 process_artifact[{artifact.artifact_type}]:{artifact.artifact_id} started")
+                # Process the artifact
+                await artifact.post_process()
+                
+                # Update workspace with processed artifact
+                await self._store_artifact(artifact)
+                
+                logger.info(f"📦[POST-PROCESSING]✅ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} finished")
+                
+                # Update workspace timestamp
+                self.updated_at = datetime.now().isoformat()
+                
+                # Notify observers about the update
+                logger.info(f"📦[POST-PROCESSING]🔄 notify_observers[{artifact.artifact_type}]:{artifact.artifact_id} started")
+                if hasattr(self, '_notify_observers'):
+                    await self._notify_observers("update", artifact)
+                                
+                logger.info(
+                    f"📦[POST-PROCESSING]✅ Successfully processed and updated workspace for artifact: {artifact.artifact_id}"
+                )   
+                
+            except Exception as e:
+                logger.error(f"📦[POST-PROCESSING]❌ process_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}, traceback is {traceback.format_exc()}")
+                
+                # Mark artifact as error state
+                if hasattr(artifact, 'status'):
+                    from workspacex.artifact import ArtifactStatus
+                    artifact.status = ArtifactStatus.ERROR
+                    artifact.update_metadata({'error_info': str(e)})
+                    # Try to save error state
+                    try:
+                        await self._store_artifact(artifact)
+                        logger.info(f"📦[POST-PROCESSING]✅ Saved error state for artifact: {artifact.artifact_id}")
+                    except Exception as save_error:
+                        logger.error(f"📦[POST-PROCESSING]❌ Failed to save error state: {save_error}, traceback is {traceback.format_exc()}")
+
+        logger.debug(f"📦[POST-PROCESSING]🔄 process_artifact[{artifact.artifact_type}]:{artifact.artifact_id} creating async task")
+        # Create async task for processing and updating
+        asyncio.create_task(_process_artifact())
+        logger.info(f"📦[POST-PROCESSING]✅ process_artifact[{artifact.artifact_type}]:{artifact.artifact_id} async task created")
+
 
     async def add_artifact(
             self,
             artifact: Artifact
     ) -> None:
         """
-        Create a new artifact
+        Create a new artifact with thread-safe lock protection
 
         Args:
             artifact: Artifact
 
         Returns:
-            List of created artifact objects
+            None
         """
-        # Check if artifact ID already exists
-        existing_artifact = self._get_artifact(artifact.artifact_id)
-        if existing_artifact:
-            self._update_artifact(artifact)
-            await self._notify_observers("update", artifact)
-        else:
-            # Add to workspace
-            self.artifacts.append(artifact)
+        with self._save_lock:
+            # Check if artifact ID already exists
+            existing_artifact = self._get_artifact(artifact.artifact_id)
+            if existing_artifact:
+                self._update_artifact(artifact)
+                await self._notify_observers("update", artifact)
+            else:
+                # Add to workspace
+                self.artifacts.append(artifact)
 
-            await self._notify_observers("create", artifact)
+                await self._notify_observers("create", artifact)
 
-        # Store in repository
-        await self._store_artifact(artifact)
+            # Store in repository
+            await self._store_artifact(artifact)
 
-        # Update workspace time
-        self.updated_at = datetime.now().isoformat()
+            # Update workspace time
+            self.updated_at = datetime.now().isoformat()
 
-        # Save workspace state to create new version
-        self.save()
+            # Save workspace state to create new version
+            self.save()
 
 
     def _update_artifact(self, artifact: Artifact) -> None:
-        for i, a in enumerate(self.artifacts):
-            if a.artifact_id == artifact.artifact_id:
-                self.artifacts[i] = artifact
-                logger.info(f"[📂WORKSPACEX]🔄 Updating artifact in repository: {artifact.artifact_id}")
-                break
+        """
+        Update artifact in the artifacts list with thread-safe lock protection
+        
+        Args:
+            artifact: Artifact to update
+            
+        Returns:
+            None
+        """
+        with self._save_lock:
+            for i, a in enumerate(self.artifacts):
+                if a.artifact_id == artifact.artifact_id:
+                    self.artifacts[i] = artifact
+                    logger.info(f"[📂WORKSPACEX]🔄 Updating artifact in repository: {artifact.artifact_id}")
+                    break
 
     async def update_artifact(
             self,
@@ -364,7 +429,7 @@ class WorkSpace(BaseModel):
             description: str = "Content update"
     ) -> Optional[Artifact]:
         """
-        Update artifact content
+        Update artifact content with thread-safe lock protection
         
         Args:
             artifact_id: Artifact ID
@@ -374,45 +439,47 @@ class WorkSpace(BaseModel):
         Returns:
             Updated artifact, or None if it doesn't exist
         """
-        artifact = self._get_artifact(artifact_id)
-        if artifact:
-            artifact.update_content(content, description)
+        with self._save_lock:
+            artifact = self._get_artifact(artifact_id)
+            if artifact:
+                artifact.update_content(content, description)
 
-            # Update storage
-            await self._store_artifact(artifact)
+                # Update storage
+                await self._store_artifact(artifact)
 
-            # Update workspace time
-            self.updated_at = datetime.now().isoformat()
+                # Update workspace time
+                self.updated_at = datetime.now().isoformat()
 
-            # Notify observers
-            await self._notify_observers("update", artifact)
+                # Notify observers
+                await self._notify_observers("update", artifact)
 
-            return artifact
-        return None
+                return artifact
+            return None
     
     async def update_artifact_metadata(self, artifact: Artifact, metadata: Dict[str, Any]) -> bool:
         """
-        Update artifact metadata
+        Update artifact metadata with thread-safe lock protection
         """
-        if artifact.parent_id:
-            parent_artifact = self._get_artifact(artifact.parent_id)
-            if parent_artifact:
-                for sub_artifact in parent_artifact.sublist:
-                    if sub_artifact.artifact_id == artifact.artifact_id:
-                        sub_artifact.update_metadata(metadata)
-                        self.repository.store_artifact(parent_artifact, save_sub_list_content=False)
-                        return True
-        else:
-            artifact.update_metadata(metadata)
-            self.repository.store_artifact(artifact, save_sub_list_content=False)
-        return True
+        with self._save_lock:
+            if artifact.parent_id:
+                parent_artifact = self._get_artifact(artifact.parent_id)
+                if parent_artifact:
+                    for sub_artifact in parent_artifact.sublist:
+                        if sub_artifact.artifact_id == artifact.artifact_id:
+                            sub_artifact.update_metadata(metadata)
+                            self.repository.store_artifact(parent_artifact, save_sub_list_content=False)
+                            return True
+            else:
+                artifact.update_metadata(metadata)
+                self.repository.store_artifact(artifact, save_sub_list_content=False)
+            return True
 
     async def save_artifact(self, artifact: Artifact, save_sub_list_content=False):
         self.repository.store_artifact(artifact, save_sub_list_content=save_sub_list_content)
 
     async def delete_artifact(self, artifact_id: str) -> bool:
         """
-        Delete an artifact from the workspace
+        Delete an artifact from the workspace with thread-safe lock protection
         
         Args:
             artifact_id: Artifact ID
@@ -420,25 +487,26 @@ class WorkSpace(BaseModel):
         Returns:
             Whether deletion was successful
         """
-        for i, artifact in enumerate(self.artifacts):
-            if artifact.artifact_id == artifact_id:
-                # Mark as archived
-                artifact.archive()
-                # Store the archived state
-                await self._store_artifact(artifact)
-                # Remove from list
-                self.artifacts.pop(i)
+        with self._save_lock:
+            for i, artifact in enumerate(self.artifacts):
+                if artifact.artifact_id == artifact_id:
+                    # Mark as archived
+                    artifact.archive()
+                    # Store the archived state
+                    await self._store_artifact(artifact)
+                    # Remove from list
+                    self.artifacts.pop(i)
 
-                # Update workspace time
-                self.updated_at = datetime.now().isoformat()
+                    # Update workspace time
+                    self.updated_at = datetime.now().isoformat()
 
-                # Save workspace state to create new version
-                self.save()
+                    # Save workspace state to create new version
+                    self.save()
 
-                # Notify observers
-                await self._notify_observers("delete", artifact)
-                return True
-        return False
+                    # Notify observers
+                    await self._notify_observers("delete", artifact)
+                    return True
+            return False
     
     async def _store_artifact(self, artifact: Artifact) -> None:
         """Store artifact in repository"""
@@ -485,6 +553,8 @@ class WorkSpace(BaseModel):
         # if chunking is enabled, chunk the artifact first
         if self.workspace_config.chunk_config.enabled and artifact.support_chunking:
             chunks = await self._chunk_artifact(artifact)
+            if not chunks:
+                return
             await self._rebuild_artifact_embedding(artifact, chunks)
             await self._rebuild_artifact_fulltext(artifact, chunks)
         else:
@@ -505,10 +575,10 @@ class WorkSpace(BaseModel):
                     artifact.after_chunk()
                     return chunks
                 else:
-                    logger.info(f"📦[EMBEDDING-CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
+                    logger.info(f"📦[EMBEDDING-CHUNKING] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
                     return []
             except Exception as e:
-                logger.error(f"📦[CHUNKING]❌ store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}\n traceback is {traceback.format_exc()}")
+                logger.error(f"📦[CHUNKING] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}\n traceback is {traceback.format_exc()}")
                 raise
         else:
             return []
@@ -533,6 +603,8 @@ class WorkSpace(BaseModel):
 
     async def _rebuild_artifact_embedding(self, artifact: Artifact, chunks: list[Chunk] = None):
         if not self.workspace_config.embedding_config.enabled:
+            return
+        if not chunks:
             return
 
         self.vector_db.delete(self.default_vector_collection, filter={"artifact_id": artifact.artifact_id})
@@ -578,6 +650,8 @@ class WorkSpace(BaseModel):
             chunks (List[Chunk], optional): Chunks of the artifact. If None, uses the artifact's content directly.
         """
         if not self.fulltext_db:
+            return
+        if not chunks:
             return
             
         try:
@@ -644,6 +718,8 @@ class WorkSpace(BaseModel):
         """
         if not self.fulltext_db:
             logger.warning(f"📦[FULLTEXT]⚠️ fulltext_db is not enabled for artifact {artifact.artifact_id}")
+            return
+        if not chunks:
             return
             
         # Delete existing full-text data for this artifact
@@ -1199,33 +1275,40 @@ class WorkSpace(BaseModel):
 
     def save(self) -> None:
         """
-        Save workspace state
+        Save workspace state with thread-safe lock protection
+        
+        This method is protected by a threading lock to prevent concurrent access
+        from multiple threads that could lead to data corruption or race conditions.
         
         Returns:
-            Workspace storage ID
+            None
         """
-        workspace_data = {
-            "workspace_id": self.workspace_id,
-            "name": self.name,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "metadata": self.metadata,
-            "artifact_ids": [a.artifact_id for a in self.artifacts],
-            "artifacts": [
-                {
-                    "artifact_id": a.artifact_id,
-                    "type": str(a.artifact_type),
-                    "metadata": a.metadata,
-                    # "version": a.current_version
-                } for a in self.artifacts
-            ]
-        }
+        with self._save_lock:
+            workspace_data = {
+                "workspace_id": self.workspace_id,
+                "name": self.name,
+                "created_at": self.created_at,
+                "updated_at": self.updated_at,
+                "metadata": self.metadata,
+                "artifact_ids": [a.artifact_id for a in self.artifacts],
+                "artifacts": [
+                    {
+                        "artifact_id": a.artifact_id,
+                        "type": str(a.artifact_type),
+                        "metadata": a.metadata,
+                        # "version": a.current_version
+                    } for a in self.artifacts
+                ]
+            }
 
-        logger.info(f"💼 save_workspace {self.workspace_id}")
-        # Store workspace information with workspace_id in metadata
-        self.repository.store_index(
-            index_data=workspace_data
-        )
+            logger.info(f"💼 save_workspace {self.workspace_id} start")
+            # Store workspace information with workspace_id in metadata
+            self.repository.store_index(
+                index_data=workspace_data
+            )
+
+            logger.info(f"💼 save_workspace {self.workspace_id} finished")
+
     
     def _load_workspace_data(self) -> Optional[Dict[str, Any]]:
         """

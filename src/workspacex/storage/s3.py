@@ -73,8 +73,10 @@ class S3Repository(BaseRepository):
             with self.fs.open(self.index_path, 'r') as f:
                 return json.load(f)
         else:
+            logger.info(f"🔍 _load_index index_path not found: {self.index_path}")
             index = {}
             self._save_index(index)
+            logger.info(f"🔍 _load_index index_path not found, init index: {self.index_path}")
             return index
 
     @timeit(logger.info,
@@ -102,7 +104,7 @@ class S3Repository(BaseRepository):
             self.fs.mkdirs(artifact_dir, exist_ok=True)
         sub_artifacts_meta = []
         logger.info(
-            f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts"
+            f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts started"
         )
         artifact_meta = artifact.to_dict()
         if save_sub_list_content:
@@ -111,7 +113,6 @@ class S3Repository(BaseRepository):
             self.save_attachment_files(artifact)
         index_path = self._full_path(self._artifact_index_path(artifact_id))
         from workspacex.storage.local import CommonEncoder
-        logger.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts")
         content_type = self.guess_content_type(index_path)
         with self.fs.open(index_path, "w", ContentType=content_type) as f:
             json.dump(artifact_meta,
@@ -119,6 +120,7 @@ class S3Repository(BaseRepository):
                       indent=2,
                       ensure_ascii=False,
                       cls=CommonEncoder)
+        logger.info(f"📦 Storing artifact {artifact_id} with {len(artifact.sublist)} sub-artifacts finished")
             
     def save_attachment_files(self, artifact: "Artifact") -> None:
         """

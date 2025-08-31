@@ -74,6 +74,7 @@ class ArtifactStatus(Enum):
     COMPLETE = auto()   # Completed status
     EDITED = auto()     # Edited status
     ARCHIVED = auto()   # Archived status
+    ERROR = auto()      # Error status
 
 class AttachmentFile(BaseModel):
     file_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="File ID")

@@ -188,27 +188,6 @@ class ArtifactFactory:
                                     **kwargs)
 
     @classmethod
-    def process_artifact_async(cls, artifact: Artifact) -> None:
-        """
-        Process an artifact asynchronously based on its type
-        
-        This method creates an async task for post-processing without waiting for completion.
-        
-        Args:
-            artifact (Artifact): The artifact to process
-            
-        Returns:
-            None: Creates an async task for processing
-        """
-        import asyncio
-
-        asyncio.create_task(artifact.post_process())
-
-        logger.info(
-            f"🚀 Started async post-processing for artifact: {artifact.artifact_id}"
-        )
-
-    @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Optional[Artifact]:
         """
         restore an Artifact instance
