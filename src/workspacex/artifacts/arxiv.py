@@ -112,6 +112,9 @@ class ArxivArtifact(BasePDFArtifact):
         logger.info(f"📄 Post-processing arXiv paper: {self.arxiv_id}")
         url = f"https://arxiv.org/pdf/{self.arxiv_id}"
 
+        self.attachment_files = {}
+    
+
         # 1. download pdf
         filename, temp_file_path = await io.download_pdf_from_url(url)
         if not filename:

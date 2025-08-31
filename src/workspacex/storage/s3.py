@@ -1,6 +1,7 @@
 import asyncio
 import json
 import mimetypes
+import os
 import time
 from typing import Dict, Any, Optional, Tuple
 
@@ -132,6 +133,11 @@ class S3Repository(BaseRepository):
         for file in tqdm(artifact.attachment_files.values(), desc="save_attachment_files"):
             file_path = self._full_path(self._attachment_file_path(artifact.artifact_id, file.file_name))
             content_type = self.guess_content_type(file_path)
+            if self.fs.exists(file_path):
+                self.fs.rm(file_path)
+            if not os.path.exists(file.file_path):
+                logger.info(f"Artifact {artifact.artifact_id} attachment file {file.file_path} not found")
+                continue
             with self.fs.open(file_path, "wb", ContentType=content_type) as f:
                 with open(file.file_path, "rb") as src:
                     f.write(src.read())

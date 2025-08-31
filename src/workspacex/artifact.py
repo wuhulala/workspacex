@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional, List
 
 from pydantic import BaseModel, Field, model_validator
 
+from workspacex.utils.logger import logger
+
 
 class ArtifactType(Enum):
     """Defines supported artifact types"""
@@ -244,6 +246,9 @@ class Artifact(BaseModel):
         # Restore sublist if present
         if "sublist" in data and data.get("sublist"):
             artifact.sublist = [cls.from_dict(sub) for sub in data.get("sublist")]
+
+        if artifact.attachment_files:
+            artifact.attachment_files = {file_id: AttachmentFile.model_validate(file) if isinstance(file, dict) else file for file_id,file in artifact.attachment_files.items()}
         return artifact
 
     def add_subartifact(self, subartifact: 'Artifact') -> None:
@@ -305,6 +310,10 @@ class Artifact(BaseModel):
         if 'attachment_files' not in self.metadata:
             self.metadata['attachment_files'] = {}
         return self.metadata['attachment_files']
+
+    @attachment_files.setter
+    def attachment_files(self, attachment_files: Dict[str, AttachmentFile]):
+        self.metadata['attachment_files'] = attachment_files
     
     def attachment_files_desc(self) -> Dict[str, str]:
         """
@@ -315,14 +324,25 @@ class Artifact(BaseModel):
     def get_attachment_file(self, file_id: str) -> Optional[AttachmentFile]:
         return self.attachment_files.get(file_id)
 
+    def get_attachment_file_names(self) -> List[str]:
+        return [file.file_name for file in self.attachment_files.values()]
+
     def add_attachment_file(self, file: AttachmentFile):
         """Add an attachment file to the artifact
         
         Args:
             file (AttachmentFile): The attachment file to add
         """
+        
         if 'attachment_files' not in self.metadata:
             self.metadata['attachment_files'] = {}
+        # 根据filename判断，如果已存在则更新对应的file，否则添加新file
+        for existing_file in self.attachment_files.values():
+            if existing_file.file_name == file.file_name:
+                # update existing file
+                self.metadata['attachment_files'][existing_file.file_id] = file
+                logger.info(f"✏️ Updated attachment file: {file.file_name}")
+                return
         self.metadata['attachment_files'][file.file_id] = file
 
     def after_chunker(self):

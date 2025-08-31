@@ -181,7 +181,7 @@ class BasePDFArtifact(Artifact):
 
             self.add_attachment_file(
                 AttachmentFile(
-                    file_name="merged_result.md",
+                    file_name="result.md",
                     file_desc="Merged markdown content from all batches",
                     file_path=str(merged_file_path)))
 
