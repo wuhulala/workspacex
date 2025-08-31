@@ -230,7 +230,7 @@ class BasePDFArtifact(Artifact):
         try:
             # Call API to process this batch
             markdown_zip_filename, markdown_zip_file_path = await pdf.parse_pdf_to_zip(
-                pdf_path, page_count=end_page - start_page)
+                pdf_path, page_count=end_page - start_page, start_page=start_page)
 
             if not markdown_zip_filename or not markdown_zip_file_path:
                 logger.warning(
@@ -366,12 +366,6 @@ class BasePDFArtifact(Artifact):
         # Merge all batch contents
         merged = header + "\n\n".join(batch_contents)
 
-        # Add footer
-        footer = f"""
 
----
 
-*Document processed using batch processing to optimize memory usage.*
-"""
-
-        return merged + footer
+        return merged

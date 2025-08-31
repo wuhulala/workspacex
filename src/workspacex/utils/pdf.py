@@ -31,7 +31,7 @@ def get_pdf_page_count(pdf_file_path: str) -> int:
         raise PyPDF2.PdfReadError(f"Error reading PDF file: {str(e)}")
 
 
-async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 1024) -> str:
+async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 1024, start_page: int = 0) -> str:
     """
     Parse PDF file to markdown format using remote API with streaming upload
     
@@ -72,7 +72,8 @@ async def parse_pdf_to_markdown(pdf_file_path: str, chunk_size: int = 1024 * 102
     
     # Prepare form data with streaming
     data = aiohttp.FormData()
-    data.add_field('page_range', f'0-{page_count-1}')
+    end_page = start_page + page_count - 1 if page_count > 0 else page_count - 1
+    data.add_field('page_range', f'{start_page}-{end_page}')
     data.add_field('force_ocr', 'false')
     data.add_field('paginate_output', 'false')
     data.add_field('output_format', 'markdown')
@@ -106,6 +107,7 @@ async def parse_pdf_to_zip(
     pdf_file_path: str, 
     output_dir: str = None, 
     page_count: int = -1,
+    start_page: int = 0,
     timeout: int = 600
 ) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -115,6 +117,7 @@ async def parse_pdf_to_zip(
         pdf_file_path (str): Path to the PDF file to parse
         output_dir (str): Directory to save the zip file (default: same directory as PDF)
         page_count (int): Number of pages to process (-1 for all pages)
+        start_page (int): Starting page number (0-based, default: 0)
         timeout (int): Request timeout in seconds (default: 600 seconds/10 minutes)
         
     Returns:
@@ -151,7 +154,8 @@ async def parse_pdf_to_zip(
     
     # Prepare form data with streaming
     data = aiohttp.FormData()
-    data.add_field('page_range', f'0-{page_count-1}')
+    end_page = start_page + page_count - 1 if page_count > 0 else page_count - 1
+    data.add_field('page_range', f'{start_page}-{end_page}')
     data.add_field('force_ocr', 'false')
     data.add_field('paginate_output', 'false')
     data.add_field('output_format', 'markdown')
