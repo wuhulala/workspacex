@@ -265,12 +265,51 @@ class LocalPathRepository(BaseRepository):
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(chunk.model_dump_json(indent=2))
         
-    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[str]:
+    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[bytes]:
         """
         Get the content of an attachment file by artifact ID and file name.
+        Args:
+            artifact_id: The ID of the artifact
+            file_name: The name of the file
+        Returns:
+            The content of the attachment file as bytes, or None if not found
         """
         file_path = self._full_path(self._attachment_file_path(artifact_id, file_name))
         if file_path.exists():
             with open(file_path, "rb") as f:
                 return f.read()
         return None
+    
+    def get_attachment_file_path(self, artifact_id: str, file_name: str) -> Optional[str]:
+        """
+        Get the path of an attachment file by artifact ID and file name.
+        Args:
+            artifact_id: The ID of the artifact
+            file_name: The name of the file
+        Returns:
+            The path of the attachment file as string, or None if not found
+        """
+        file_path = self._full_path(self._attachment_file_path(artifact_id, file_name))
+        if file_path.exists():
+            return str(file_path)
+        return None
+    
+    async def get_attachment_file_stream_chunks(self, artifact_id: str, file_name: str):
+        """
+        Get attachment file as async generator yielding chunks (for streaming)
+        Args:
+            artifact_id: The ID of the artifact
+            file_name: The name of the file
+        Yields:
+            bytes: File data chunks
+        """
+        file_path = self._full_path(self._attachment_file_path(artifact_id, file_name))
+        if file_path.exists():
+            import aiofiles
+            async with aiofiles.open(file_path, 'rb') as f:
+                chunk_size = 64 * 1024  # 64KB chunks
+                while True:
+                    chunk = await f.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk

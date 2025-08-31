@@ -111,14 +111,38 @@ class BaseRepository(ABC):
         pass
     
     @abstractmethod
-    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[str]:
+    def get_attachment_file(self, artifact_id: str, file_name: str) -> Optional[bytes]:
         """
         Get the content of an attachment file by artifact ID and file name.
         Args:
             artifact_id: The ID of the artifact
             file_name: The name of the file
         Returns:
-            The content of the attachment file as a string, or None if not found
+            The content of the attachment file as bytes, or None if not found
+        """
+        pass
+    
+    @abstractmethod
+    def get_attachment_file_path(self, artifact_id: str, file_name: str) -> Optional[str]:
+        """
+        Get the path of an attachment file by artifact ID and file name.
+        Args:
+            artifact_id: The ID of the artifact
+            file_name: The name of the file
+        Returns:
+            The path of the attachment file as string, or None if not found
+        """
+        pass
+    
+    @abstractmethod
+    async def get_attachment_file_stream_chunks(self, artifact_id: str, file_name: str):
+        """
+        Get attachment file as async generator yielding chunks (for streaming)
+        Args:
+            artifact_id: The ID of the artifact
+            file_name: The name of the file
+        Yields:
+            bytes: File data chunks
         """
         pass
 

@@ -127,7 +127,7 @@ class WorkSpace(BaseModel):
         self._embedder = None
         
         # Initialize lock for thread-safe operations
-        self._save_lock = threading.Lock()
+        self._save_lock = asyncio.Lock()
         
         if clear_existing:
             if self.vector_db:
@@ -383,11 +383,11 @@ class WorkSpace(BaseModel):
         Returns:
             None
         """
-        with self._save_lock:
+        async with self._save_lock:
             # Check if artifact ID already exists
             existing_artifact = self._get_artifact(artifact.artifact_id)
             if existing_artifact:
-                self._update_artifact(artifact)
+                await self._update_artifact(artifact)
                 await self._notify_observers("update", artifact)
             else:
                 # Add to workspace
@@ -400,12 +400,12 @@ class WorkSpace(BaseModel):
 
             # Update workspace time
             self.updated_at = datetime.now().isoformat()
+        
+        # 锁释放后，再调用 save() 避免死锁
+        await self.save()
 
-            # Save workspace state to create new version
-            self.save()
 
-
-    def _update_artifact(self, artifact: Artifact) -> None:
+    async def _update_artifact(self, artifact: Artifact) -> None:
         """
         Update artifact in the artifacts list with thread-safe lock protection
         
@@ -415,7 +415,7 @@ class WorkSpace(BaseModel):
         Returns:
             None
         """
-        with self._save_lock:
+        async with self._save_lock:
             for i, a in enumerate(self.artifacts):
                 if a.artifact_id == artifact.artifact_id:
                     self.artifacts[i] = artifact
@@ -439,7 +439,7 @@ class WorkSpace(BaseModel):
         Returns:
             Updated artifact, or None if it doesn't exist
         """
-        with self._save_lock:
+        async with self._save_lock:
             artifact = self._get_artifact(artifact_id)
             if artifact:
                 artifact.update_content(content, description)
@@ -460,7 +460,7 @@ class WorkSpace(BaseModel):
         """
         Update artifact metadata with thread-safe lock protection
         """
-        with self._save_lock:
+        async with self._save_lock:
             if artifact.parent_id:
                 parent_artifact = self._get_artifact(artifact.parent_id)
                 if parent_artifact:
@@ -487,7 +487,7 @@ class WorkSpace(BaseModel):
         Returns:
             Whether deletion was successful
         """
-        with self._save_lock:
+        async with self._save_lock:
             for i, artifact in enumerate(self.artifacts):
                 if artifact.artifact_id == artifact_id:
                     # Mark as archived
@@ -499,14 +499,14 @@ class WorkSpace(BaseModel):
 
                     # Update workspace time
                     self.updated_at = datetime.now().isoformat()
+            
+            # 锁释放后，再调用 save() 避免死锁
+            await self.save()
 
-                    # Save workspace state to create new version
-                    self.save()
-
-                    # Notify observers
-                    await self._notify_observers("delete", artifact)
-                    return True
-            return False
+            # Notify observers
+            await self._notify_observers("delete", artifact)
+            return True
+        return False
     
     async def _store_artifact(self, artifact: Artifact) -> None:
         """Store artifact in repository"""
@@ -897,6 +897,87 @@ class WorkSpace(BaseModel):
             return self.repository.get_subaritfact_content(artifact_id, parent_id)
         else:
             return None
+
+    async def get_attachment_file_stream(self, artifact_id: str, file_name: str) -> Optional[bytes]:
+        """
+        获取指定artifact的附件文件内容（二进制数据）
+
+        Args:
+            artifact_id (str): artifact的ID
+            file_name (str): 附件文件名
+
+        Returns:
+            Optional[bytes]: 附件文件内容（二进制数据），如果不存在则返回None
+        """
+        # ⚡️支持并发调用
+        logger.info(f"📎 get_attachment_file_stream: artifact_id={artifact_id}, file_name={file_name}")
+        return self.repository.get_attachment_file(artifact_id, file_name)
+    
+    async def get_attachment_file_path(self, artifact_id: str, file_name: str) -> Optional[str]:
+        """
+        获取指定artifact的附件文件路径（用于流式传输）
+
+        Args:
+            artifact_id (str): artifact的ID
+            file_name (str): 附件文件名
+
+        Returns:
+            Optional[str]: 附件文件路径，如果不存在则返回None
+        """
+        # ⚡️支持并发调用
+        logger.info(f"📎 get_attachment_file_path: artifact_id={artifact_id}, file_name={file_name}")
+        return self.repository.get_attachment_file_path(artifact_id, file_name)
+    
+    def get_storage_type(self) -> str:
+        """
+        获取存储类型
+        
+        Returns:
+            str: 存储类型 ("local" 或 "s3" 等)
+        """
+        if hasattr(self.repository, '__class__'):
+            repo_class_name = self.repository.__class__.__name__.lower()
+            if 'local' in repo_class_name:
+                return "local"
+            elif 's3' in repo_class_name:
+                return "s3"
+            else:
+                return "unknown"
+        return "unknown"
+    
+    async def get_attachment_file_stream_chunks(self, artifact_id: str, file_name: str):
+        """
+        获取指定artifact的附件文件流式数据块（支持S3等远程存储）
+
+        Args:
+            artifact_id (str): artifact的ID
+            file_name (str): 附件文件名
+
+        Yields:
+            bytes: 文件数据块
+        """
+        # ⚡️支持并发调用
+        logger.info(f"📎 get_attachment_file_stream_chunks: artifact_id={artifact_id}, file_name={file_name}")
+        
+        # 根据存储类型选择不同的流式读取方式
+        storage_type = self.get_storage_type()
+        
+        if storage_type == "local":
+            # 本地存储：使用文件流
+            file_path = await self.get_attachment_file_path(artifact_id, file_name)
+            if file_path and os.path.exists(file_path):
+                import aiofiles
+                async with aiofiles.open(file_path, 'rb') as f:
+                    chunk_size = 64 * 1024  # 64KB chunks
+                    while True:
+                        chunk = await f.read(chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
+        else:
+            # S3 或其他远程存储：使用 repository 的流式读取
+            async for chunk in self.repository.get_attachment_file_stream_chunks(artifact_id, file_name):
+                yield chunk
     
     #########################################################
     # Hybrid Search
@@ -1273,7 +1354,7 @@ class WorkSpace(BaseModel):
     # Workspace Management
     #########################################################
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """
         Save workspace state with thread-safe lock protection
         
@@ -1283,7 +1364,7 @@ class WorkSpace(BaseModel):
         Returns:
             None
         """
-        with self._save_lock:
+        async with self._save_lock:
             workspace_data = {
                 "workspace_id": self.workspace_id,
                 "name": self.name,

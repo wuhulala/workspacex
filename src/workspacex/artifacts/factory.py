@@ -1,3 +1,4 @@
+import traceback
 from typing import Dict, Any, Optional, Type, Union, ClassVar
 
 from workspacex import Artifact, ArtifactType
@@ -226,18 +227,24 @@ class ArtifactFactory:
         if artifact_type not in cls._artifact_classes:
             return Artifact.from_dict(data)
 
-        # Get the appropriate artifact class
-        artifact_class = cls._artifact_classes[artifact_type]
+        try:
+            # Get the appropriate artifact class
+            artifact_class = cls._artifact_classes[artifact_type]
 
-        # check if there is a special from_dict static method
-        if hasattr(artifact_class, 'from_dict') and callable(
-                getattr(artifact_class, 'from_dict')):
-            # use the class's own from_dict method to create an instance
-            artifact = artifact_class.from_dict(data)
-        else:
-            # use the general way to create an instance
-            artifact = artifact_class(data)
-        logger.info(
-            f"📥 Deserialized artifact of type {artifact_type.value}: {artifact.artifact_id}"
-        )
-        return artifact
+            # Check if there is a special from_dict static method
+            if hasattr(artifact_class, 'from_dict') and callable(
+                    getattr(artifact_class, 'from_dict')):
+                # Use the class's own from_dict method to create an instance
+                artifact = artifact_class.from_dict(data)
+            else:
+                # Use the general way to create an instance
+                artifact = artifact_class(data)
+            logger.info(
+                f"📥 Deserialized artifact of type {artifact_type.value}: {artifact.artifact_id}"
+            )
+            return artifact
+        except Exception as e:
+            logger.error(
+                f"❌ Failed to deserialize artifact of type {artifact_type.value if 'artifact_type' in locals() else 'unknown'}: {e}, traceback: {traceback.format_exc()}"
+            )
+            return None
