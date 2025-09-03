@@ -1,10 +1,13 @@
 import logging
 import os
 import time
+import traceback
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
+
+from workspacex.utils.tokenutils import num_tokens
 
 
 class LangFuseHolder:
@@ -37,7 +40,8 @@ def call_llm(prompt: str, model_name: str = None, llm_config: dict[str, Any] = {
         else:
             response = llm_model.invoke([{"role": "user", "content": prompt}])
         use_time = time.time() - start_time
-        logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖")
+        logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] 🤖")
+        logging.debug(f"result is: {response.content} ")
         return response.content
     except Exception as e:    
         logging.error(f"Failed to call LLM: {e}")
@@ -67,7 +71,7 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None, s
             role = msg.get("role", "unknown")
             content = msg.get("content", "")
             log_msg += f"  [{idx}] ({role}): {content}\n"
-        logging.info(log_msg)
+        logging.debug(log_msg)
         if os.environ.get("LANGFUSE_ENABLED", "False").lower() == "true":
             response = await llm_model.ainvoke(
                 messages,
@@ -76,11 +80,13 @@ async def call_llm_async(prompt: str, model_name: str = None, llm_config=None, s
             response = await llm_model.ainvoke(
                 messages
             )
+
+
         use_time = time.time() - start_time
-        logging.info(f"LLM response[{len(prompt)} chars -> use {use_time:.2f} s] result is: {response.content} 🤖 -> {response.usage_metadata}")
+        logging.info(f"LLM response[{len(prompt)} chars {num_tokens(prompt)}tokens -> use {use_time:.2f} s] result is: {response.content} 🤖 -> {response.usage_metadata}")
         return response.content
     except Exception as e:    
-        logging.error(f"Failed to call LLM: {e}")
+        logging.error(f"Failed to call LLM: {e}, traceback is {traceback.format_exc()}")
         raise ValueError(f"Failed to call LLM model: {e}")
 
 def get_llm_model(model_name: str = None, llm_config=None) -> ChatOpenAI:

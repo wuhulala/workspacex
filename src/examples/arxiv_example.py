@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 
 from workspacex.artifact import ArtifactType, ChunkSearchQuery
+from workspacex.artifacts.arxiv import ArxivArtifact
+from workspacex.artifacts.factory import ArtifactFactory
 from workspacex.utils.logger import logger
 from workspacex.utils.rag_utils import call_llm_async
 from workspacex.workspace import WorkSpace
@@ -39,7 +41,7 @@ async def build_s3_workspace(clear_existing=False) -> WorkSpace:
         'use_ssl': False
     }
     bucket = 'agentworkspace'
-    storage_path = 'arxiv_workspace'
+    storage_path = 'arivx_demo'
     # Ensure bucket exists (create if not)
     import s3fs
     fs = s3fs.S3FileSystem(**s3_kwargs)
@@ -53,6 +55,70 @@ async def build_s3_workspace(clear_existing=False) -> WorkSpace:
     return WorkSpace(workspace_id="arxiv_workspace",
                      name="Arxiv Example Workspace S3",
                      repository=repo, clear_existing=False)
+
+async def create_arxiv_artifact():
+    ws = await build_s3_workspace()
+    artifact = ArxivArtifact.from_arxiv_id("2508.21550")
+    # await ws.delete_artifact(artifact.artifact_id)
+    await artifact.post_process()
+    await ws.add_artifact(artifact)
+    # await ws.rebuild_artifact_index(artifact)
+
+    with open("translate.md", mode="w") as f:
+        for item in artifact.chunk_list:
+            context = f"\n\n{item.chunk.chunk_id}:\n \n{item.chunk.content}\n\n"
+            prompt = f"翻译以下内容，并且总结一下：\n\n{context}"
+            result = await call_llm_async(prompt, llm_config={
+                "timeout": 30,
+                "max_tokens": 4096,
+                "temperature": 0,
+                "extra_body": {
+                    "top_k": 20,
+                    "chat_template_kwargs": {"enable_thinking": False},
+                }
+            })
+            f.write(f"\n\n{item.chunk.content}\n\n{result}\n\n")
+
+
+
+async def rebuild_arxiv_artifact_index() -> None:
+    ws = await build_s3_workspace()
+    artifact_id = "arxiv_2507.13334"
+    artifact = ws.get_artifact(artifact_id)
+    await ws.rebuild_artifact_index(artifact)
+
+async def search_arxiv_chunks() -> None:
+    ws = await build_s3_workspace()
+    filters = {
+        "artifact_id": "arxiv_2507.13334",
+
+    }
+
+    chunks = await ws.retrieve_chunk(ChunkSearchQuery(
+        query="Memory",
+        filters=filters,
+        threshold=0.5,
+        limit=5
+    ))
+
+    if not chunks:
+        return
+    for item in chunks:
+        context = f"\n\n{item.chunk.chunk_id}:\n \n{item.chunk.content}\n\n"
+        prompt = f"翻译以下内容，并且总结一下：\n\n{context}"
+        result = await call_llm_async(prompt, llm_config={
+            "timeout": 30,
+            "max_tokens": 4096,
+            "temperature": 0,
+            "extra_body": {
+                "top_k": 20,
+                "chat_template_kwargs": {"enable_thinking": False},
+            }
+        })
+
+        print(result)
+
+
 
 
 async def create_arxiv_artifact_example() -> None:
@@ -117,12 +183,16 @@ if __name__ == "__main__":
     # asyncio.run(create_arxiv_artifact_example())
     # asyncio.run(rebuild_index())
     import logging
+    load_dotenv()
 
     logging.basicConfig(level=logging.INFO)
     # arxiv_id = "2507.21509"
-    arxiv_id = "2507.13334"
+    # arxiv_id = "2507.13334"
     # asyncio.run(create_arxiv_artifact_s3_example(arxiv_id))
-    asyncio.run(retrieve_chunk(arxiv_id))
+    # asyncio.run(retrieve_chunk(arxiv_id))
+    # asyncio.run(rebuild_arxiv_artifact_index())
+    # asyncio.run(search_arxiv_chunks())
+    asyncio.run(create_arxiv_artifact())
 
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())

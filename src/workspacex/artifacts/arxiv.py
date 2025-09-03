@@ -98,7 +98,8 @@ class ArxivArtifact(BasePDFArtifact):
 
     def after_chunker(self):
         """Clean up after chunking is complete"""
-        self.content = ""
+        # self.content = ""
+        pass
 
     async def post_process(self) -> None:
         """
@@ -134,11 +135,14 @@ class ArxivArtifact(BasePDFArtifact):
         # 2. Process PDF to markdown using base class
         # Always use batch processing for arXiv papers to avoid memory issues
         try:
-            markdown_content = await self.process_pdf_to_markdown(
-                pdf_path=temp_file_path,
-                page_count=self.page_count,
-                use_batch_processing=True,
-                batch_size=5)
+
+            # markdown_content = await self.process_pdf_to_markdown(
+            #     pdf_path=temp_file_path,
+            #     page_count=self.page_count,
+            #     use_batch_processing=True,
+            #     batch_size=5)
+            #
+            markdown_content = await self.reslove_pdf_to_markdown_with_fitz(temp_file_path)
 
             # Set the content
             self.content = markdown_content
@@ -146,7 +150,7 @@ class ArxivArtifact(BasePDFArtifact):
             # Mark processing as complete
             self.mark_complete()
             logger.info(
-                f"✅ Successfully processed arXiv paper {self.arxiv_id} using batch processing"
+                f"✅ Successfully processed arXiv paper {self.arxiv_id} "
             )
 
         except Exception as e:

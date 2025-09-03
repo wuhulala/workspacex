@@ -415,12 +415,11 @@ class WorkSpace(BaseModel):
         Returns:
             None
         """
-        async with self._save_lock:
-            for i, a in enumerate(self.artifacts):
-                if a.artifact_id == artifact.artifact_id:
-                    self.artifacts[i] = artifact
-                    logger.info(f"[📂WORKSPACEX]🔄 Updating artifact in repository: {artifact.artifact_id}")
-                    break
+        for i, a in enumerate(self.artifacts):
+            if a.artifact_id == artifact.artifact_id:
+                self.artifacts[i] = artifact
+                logger.info(f"[📂WORKSPACEX]🔄 Updating artifact in repository: {artifact.artifact_id}")
+                break
 
     async def update_artifact(
             self,
@@ -551,15 +550,13 @@ class WorkSpace(BaseModel):
         """Store artifact embedding"""
 
         # if chunking is enabled, chunk the artifact first
+        chunks = []
         if self.workspace_config.chunk_config.enabled and artifact.support_chunking:
             chunks = await self._chunk_artifact(artifact)
             if not chunks:
                 return
-            await self._rebuild_artifact_embedding(artifact, chunks)
-            await self._rebuild_artifact_fulltext(artifact, chunks)
-        else:
-            await self._rebuild_artifact_embedding(artifact)
-            await self._rebuild_artifact_fulltext(artifact)
+        index_tasks = [self._rebuild_artifact_embedding(artifact, chunks), self._rebuild_artifact_fulltext(artifact, chunks)]
+        await asyncio.gather(*index_tasks)
 
     async def _chunk_artifact(self, artifact: Artifact) -> Optional[list[Chunk]]:
         """Chunk artifact"""
@@ -572,7 +569,7 @@ class WorkSpace(BaseModel):
                 
                 if chunks:
                     await self.save_artifact_chunks(artifact, chunks)
-                    artifact.after_chunk()
+                    artifact.after_chunker()
                     return chunks
                 else:
                     logger.info(f"📦[EMBEDDING-CHUNKING] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
@@ -595,6 +592,11 @@ class WorkSpace(BaseModel):
     async def rebuild_embedding(self):
         for artifact in tqdm(self.artifacts, desc="workspace_rebuild_embedding"):
             await self.rebuild_artifact_embedding(artifact)
+
+    async def rebuild_artifact_index(self, artifact: Artifact):
+       logger.info(f"📦[REBUILD_ARTIFACT_INDEX]✅ start rebuild_artifact_index ->[{artifact.artifact_type}]:{artifact.artifact_id}")
+       await self._chunk_and_embedding(artifact)
+       logger.info(f"📦[REBUILD_ARTIFACT_INDEX]✅ rebuild_artifact_index finished -> [{artifact.artifact_type}]:{artifact.artifact_id} ")
 
     async def rebuild_artifact_embedding(self, artifact: Artifact, chunks: list[Chunk] = None):
         await self._rebuild_artifact_embedding(artifact)
@@ -658,7 +660,7 @@ class WorkSpace(BaseModel):
             documents = []
 
             # default use origin text
-            if chunks and self.workspace_config.fulltext_db_config.config.get('use_chunk'):
+            if chunks and self.workspace_config.fulltext_db_config.config.get('use_chunk', True):
                 # Store each chunk as a separate document
                 for chunk in chunks:
                     doc = {
@@ -726,7 +728,7 @@ class WorkSpace(BaseModel):
         self.fulltext_db.delete(self.workspace_id, filter={"artifact_id": artifact.artifact_id})
         logger.info(f"📦[FULLTEXT]✅ delete_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} finished")
         chunkable = artifact.get_metadata_value("chunkable")
-        if chunkable and self.workspace_config.fulltext_db_config.config.get('use_chunk'):
+        if chunkable and self.workspace_config.fulltext_db_config.config.get('use_chunk', True):
             if not chunks:
                 chunks = await self._load_artifact_chunks(artifact)
         await self._store_artifact_fulltext(artifact, chunks)

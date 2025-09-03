@@ -1,7 +1,7 @@
 from workspacex.utils.logger import logger
 from typing import Any, List
 
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 
 from workspacex.embedding.base import EmbeddingsConfig, EmbeddingsBase
 from workspacex.utils.timeit import timeit
@@ -25,6 +25,7 @@ class OpenAICompatibleEmbeddings(EmbeddingsBase):
         """
         super().__init__(config)
         self.client = OpenAI(api_key=config.api_key, base_url=config.base_url)
+        self.async_client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
 
 
     @timeit(logger.info,
@@ -63,7 +64,7 @@ class OpenAICompatibleEmbeddings(EmbeddingsBase):
             List[float]: Embedding vector.
         """
         try:
-            response = self.client.embeddings.create(
+            response = await self.async_client.embeddings.create(
                 model=self.config.model_name,
                 input=text,
                 dimensions=self.config.dimensions)

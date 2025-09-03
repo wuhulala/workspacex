@@ -5,10 +5,47 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+import fitz
+import aiohttp
+
 from workspacex import Artifact
 from workspacex.artifact import AttachmentFile
 from workspacex.utils import pdf
 from workspacex.utils.logger import logger
+
+
+async def get_pdf(pdf_path: str) -> Optional[bytes]:
+    """
+    Download PDF content from a URL or read from local file
+    
+    Args:
+        pdf_path (str): URL or local file path to the PDF
+        
+    Returns:
+        Optional[bytes]: PDF content as bytes, or None if failed
+    """
+    try:
+        # Check if it's a URL or local file path
+        if pdf_path.startswith(('http://', 'https://')):
+            # Download from URL
+            async with aiohttp.ClientSession() as session:
+                async with session.get(pdf_path) as response:
+                    if response.status == 200:
+                        return await response.read()
+                    else:
+                        logger.error(f"❌ Failed to download PDF: HTTP {response.status}")
+                        return None
+        else:
+            # Read from local file
+            if os.path.exists(pdf_path):
+                with open(pdf_path, 'rb') as f:
+                    return f.read()
+            else:
+                logger.error(f"❌ PDF file not found: {pdf_path}")
+                return None
+    except Exception as e:
+        logger.error(f"❌ Error getting PDF: {e}")
+        return None
 
 
 class BasePDFArtifact(Artifact):
@@ -19,6 +56,25 @@ class BasePDFArtifact(Artifact):
     between different artifact types that need to process PDF documents.
     Inherits from Artifact to provide basic artifact functionality.
     """
+
+    async def reslove_pdf_to_markdown_with_fitz(self, pdf_path: str) -> str:
+        """
+
+        Args:
+            pdfpath: pdf_path
+
+        Returns:
+            Article as a text string or error message.
+        """
+
+        pdf_doc = await get_pdf(pdf_path)
+        if pdf_doc is None:
+            return "Unable to retrieve the article from arXiv.org."
+        pymupdf_doc = fitz.open(stream=pdf_doc, filetype="pdf")
+        content = ""
+        for page in pymupdf_doc:
+            content += page.get_text()
+        return content
 
     async def process_pdf_to_markdown(self,
                                       pdf_path: str,
