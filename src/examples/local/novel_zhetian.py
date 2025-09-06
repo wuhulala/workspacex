@@ -97,5 +97,5 @@ async def search_novel_workspace_artifacts_example() -> None:
 
 if __name__ == "__main__":
     # Uncomment the following line to test S3/MinIO integration
-    asyncio.run(create_novel_artifact_s3_example())
-    # asyncio.run(search_novel_workspace_artifacts_example())
+    # asyncio.run(create_novel_artifact_s3_example())
+    asyncio.run(search_novel_workspace_artifacts_example())

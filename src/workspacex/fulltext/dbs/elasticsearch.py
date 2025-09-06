@@ -257,8 +257,8 @@ class ElasticsearchFulltextDB(FulltextDB):
                 "highlight": {
                     "fields": {
                         "content": {
-                            "pre_tags": ["<em>"],
-                            "post_tags": ["</em>"]
+                            "pre_tags": [""],
+                            "post_tags": [""]
                         }
                     }
                 }

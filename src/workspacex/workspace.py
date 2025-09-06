@@ -28,6 +28,7 @@ from workspacex.storage.local import LocalPathRepository
 from workspacex.utils.logger import logger
 from workspacex.vector.dbs.base import VectorDB
 from workspacex.vector.factory import VectorDBFactory
+from workspacex.chunk.base import ChunkMetadata
 
 
 class WorkSpace(BaseModel):
@@ -1063,146 +1064,168 @@ class WorkSpace(BaseModel):
         logger.info(f"🔍 retrieve_artifact results size: {len(results)}")
         return results
 
-    async def _rerank_candidate_artifacts(self, user_message: str, candidates: list[Artifact]) -> Optional[list[RerankResult]]:
-        # remove duplicate results by artifact_id
-        unique_results = {}
-        for result in candidates:
-            unique_results[result.artifact_id] = result
-            if not result.content:
-                result.content = self._get_file_content_by_artifact_id(artifact_id=result.artifact_id, parent_id=result.parent_id)
+    async def _fulltext_search_chunks(self, search_query: ChunkSearchQuery) -> Dict[str, Chunk]:
+        if not self.fulltext_db:
+            return {}
+        fulltext_search_results = await asyncio.to_thread(
+            self.fulltext_db.search,
+            self.full_text_index, search_query.query,
+            filter=search_query.filters, limit=search_query.limit
+        )
+        chunks = {}
+        if fulltext_search_results and fulltext_search_results.results:
+            for result in fulltext_search_results.results:
+                if result.chunk_id and result.chunk_id not in chunks:
+                    metadata = result.metadata or {}
+                    chunk_metadata_obj = ChunkMetadata(
+                        chunk_index=metadata.get('chunk_index'),
+                        parent_artifact_id=metadata.get('parent_artifact_id'),
+                        chunk_size=metadata.get('chunk_size'),
+                        chunk_overlap=metadata.get('chunk_overlap'),
+                        artifact_id=metadata.get('artifact_id'),
+                        artifact_type=metadata.get('artifact_type'),
+                    )
+                    chunk = Chunk(
+                        chunk_id=result.chunk_id,
+                        content=result.content,
+                        chunk_metadata=chunk_metadata_obj
+                    )
+                    chunks[result.chunk_id] = chunk
+        return chunks
 
-        logger.info(f"🔍 _rerank_candidate_artifacts unique_results: {len(unique_results)}: {unique_results.keys()}")
-
-
-        rerank_results = self.reranker.run(user_message, list(unique_results.values()), score_threshold=self.workspace_config.hybrid_search_config.threshold)
-        if not rerank_results:
-            logger.info(f"📊[rerank_result]: {user_message} is empty")
-            return rerank_results
-        for result in rerank_results:
-            logger.info(f"📊[rerank_result]: {user_message} artifact: {result.artifact.artifact_id} score: {result.score}")
-        return rerank_results
-
-    async def _vector_search_artifacts(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
-        """
-        retrival artifact by chunk or origin record
-        """
-        query_embedding = self.embedder.embed_query(search_query.query)
-        results = []
-        # 2. Search vector db
-        search_results = self.vector_db.search(self.default_vector_collection, [query_embedding], filter={},
-                                               threshold=search_query.threshold, limit=search_query.limit)
-        if not search_results:
-            logger.warning("🔍 [CHUNK/ORIGIN]retrieve_artifact search_results is None")
-            return None
-
-        if not search_results.docs:
-            logger.warning("🔍 [CHUNK/ORIGIN]retrieve_artifact search_results.docs is None")
-            return None
-        existing_artifact_ids = []
-
-        for doc in search_results.docs:
-            if not doc.metadata:
-                logger.warning("🔍 [CHUNK/ORIGIN]retrieve_artifact doc.metadata is None")
-                continue
-            if doc.metadata.artifact_id in existing_artifact_ids:
-                logger.debug(f"🔍 [CHUNK/ORIGIN]retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
-                continue
-            artifact = self.get_artifact(doc.metadata.artifact_id, parent_id=doc.metadata.parent_id)
-            existing_artifact_ids.append(doc.metadata.artifact_id)
-            if not artifact:
-                logger.warning(f"🔍 retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
-                continue
-            logger.debug(f"🔍 [CHUNK/ORIGIN]retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
-            results.append(HybridSearchResult(artifact=artifact, score=doc.score))
-        return results
-
-    async def _vector_search_artifacts_by_summary(self, search_query: HybridSearchQuery) -> Optional[list[HybridSearchResult]]:
-        """
-        retrival artifact by summary
-        """
-
-        query_embedding = self.embedder.embed_query(search_query.query)
-        results = []
-        # 2. Search vector db
-        search_results = self.vector_db.search(self.summary_vector_collection, [query_embedding], filter={},
-                                               threshold=search_query.threshold, limit=search_query.limit)
-        if not search_results:
-            logger.warning("🔍 [SUMMARY] retrieve_artifact search_results is None")
-            return None
-
-        if not search_results.docs:
-            logger.warning("🔍 [SUMMARY]retrieve_artifact search_results.docs is None")
-            return None
-        existing_artifact_ids = []
-
-        for doc in search_results.docs:
-            if not doc.metadata:
-                logger.warning("🔍 [SUMMARY]retrieve_artifact doc.metadata is None")
-                continue
-            if doc.metadata.artifact_id in existing_artifact_ids:
-                logger.debug(f"🔍 [SUMMARY]retrieve_artifact artifact_id already exists: {doc.metadata.artifact_id}")
-                continue
-            artifact = self.get_artifact(doc.metadata.artifact_id, parent_id=doc.metadata.parent_id)
-            existing_artifact_ids.append(doc.metadata.artifact_id)
-            if not artifact:
-                logger.warning(f"🔍 [SUMMARY]retrieve_artifact artifact is None: {doc.metadata.artifact_id}")
-                continue
-            logger.debug(f"🔍 [SUMMARY]retrieve_artifact artifact- {artifact.artifact_id} score: {doc.score}")
-            results.append(HybridSearchResult(artifact=artifact, score=doc.score))
-        return results
-    
-    async def retrieve_chunk(self, search_query: ChunkSearchQuery) -> Optional[list[ChunkSearchResult]]:
-        """
-        Retrieve a chunk by its ID
-        """
-        logger.info(f"🔍 retrieve_chunk search_query: {search_query}")
-        if not self.workspace_config.chunk_config.enabled:
-            logger.warning("🔍 retrieve_chunk chunk_config is not enabled")
-            return None
-        
-        results = []
-        if not search_query:
-            logger.warning("🔍 retrieve_chunk search_query is None")
-            return None
-
-        if not search_query.limit:
-            search_query.limit = 10
-
-        if not search_query.threshold and search_query.threshold != 0:
-            search_query.threshold = 0.8
-
-        if not search_query.pre_n and search_query.pre_n != 0:
-            search_query.pre_n = 3
-
-        if not search_query.next_n and search_query.pre_n != 0:
-            search_query.next_n = 3
-
+    async def _vector_search_chunks(self, search_query: ChunkSearchQuery) -> Dict[str, Chunk]:
         chunk_query_embedding = self.embedder.embed_query(search_query.query)
-        search_results = self.vector_db.search(self.default_vector_collection, [chunk_query_embedding], filter=search_query.filters, threshold=search_query.threshold, limit=search_query.limit)
-        if not search_results:
-            logger.warning("🔍 retrieve_chunk search_results is None")
-            return None
-        
-        if not search_results.docs:
-            logger.warning("🔍 retrieve_chunk search_results.docs is None")
-            return None
-        
-        existing_chunk_ids = []
-        for doc in search_results.docs:
-            if not doc.metadata:
-                logger.warning("🔍 retrieve_chunk doc.metadata is None")
-                continue
-            if doc.metadata.chunk_id in existing_chunk_ids:
-                logger.debug(f"🔍 retrieve_chunk chunk_id already exists: {doc.metadata.chunk_id}")
-                continue
-            pre_n_chunks, chunk, next_n_chunks = self.repository.get_chunk_window(doc.metadata.artifact_id, parent_id = doc.metadata.parent_id, chunk_index=doc.metadata.chunk_index, pre_n=search_query.pre_n, next_n=search_query.next_n)
-            if not chunk:
-                logger.warning(f"🔍 retrieve_chunk chunk is None: {doc.metadata.chunk_id}")
-                continue
-            logger.debug(f"🔍 retrieve_chunk chunks- {pre_n_chunks} {chunk} {next_n_chunks} score: {doc.score}")
-            results.append(ChunkSearchResult(pre_n_chunks=pre_n_chunks, chunk=chunk, next_n_chunks=next_n_chunks, score=doc.score))
+        vector_search_results = await asyncio.to_thread(
+            self.vector_db.search, self.default_vector_collection, [chunk_query_embedding],
+            filter=search_query.filters, threshold=search_query.threshold, limit=search_query.limit
+        )
+        chunks = {}
+        if vector_search_results and vector_search_results.docs:
+            for doc in vector_search_results.docs:
+                if doc.metadata and doc.metadata.chunk_id and doc.metadata.chunk_id not in chunks:
+                    chunk_metadata_obj = ChunkMetadata(
+                        chunk_index=doc.metadata.chunk_index,
+                        parent_artifact_id=doc.metadata.parent_id,
+                        chunk_size=doc.metadata.chunk_size,
+                        chunk_overlap=doc.metadata.chunk_overlap,
+                        artifact_id=doc.metadata.artifact_id,
+                        artifact_type=doc.metadata.artifact_type
+                    )
+                    chunk = Chunk(
+                        chunk_id=doc.metadata.chunk_id,
+                        content=doc.content,
+                        chunk_metadata=chunk_metadata_obj
+                    )
+                    chunks[doc.metadata.chunk_id] = chunk
+        return chunks
 
-        return results
+    async def retrieve_chunk(self, search_query: ChunkSearchQuery) -> Optional[List[ChunkSearchResult]]:
+        """
+        Hybrid retrieval with fallback mechanism (z)
+        1. Parallel vector and fulltext search
+        2. Combine and deduplicate results
+        3. Rerank with error handling and fallback
+        4. Get context window for final results
+        
+        Args:
+            search_query: Search query parameters
+            
+        Returns:
+            List of chunk search results with context windows
+            
+        """
+        # 1. Vector and Full-text search in parallel (z)
+        fulltext_task = self._fulltext_search_chunks(search_query)
+        vector_task = self._vector_search_chunks(search_query)
+
+        fulltext_chunks, vector_chunks = await asyncio.gather(
+            fulltext_task, vector_task
+        )
+        logger.info(f"🔍 retrieve_chunk vector_search_chunks: {len(vector_chunks.keys())}")
+        logger.info(f"🔍 retrieve_chunk fulltext_search_chunks: {len(fulltext_chunks.keys())}")
+
+        # 2. & 3. Combine and deduplicate chunks for reranking (z)
+        combined_chunks: Dict[str, Chunk] = {}
+        combined_chunks.update(fulltext_chunks)
+        for chunk_id, chunk in vector_chunks.items():
+            if chunk_id not in combined_chunks:
+                combined_chunks[chunk_id] = chunk
+        
+        logger.info(f"🔍 retrieve_chunk combined_chunks final size: {len(combined_chunks)}")
+
+        if not combined_chunks:
+            return []
+
+        # Helper function for fallback to vector search results (z)
+        async def _fallback_to_vector_search() -> List[ChunkSearchResult]:
+            """Fallback mechanism when reranker is not available or fails (z)"""
+            logger.warning("🔄 Using fallback to vector search results")
+            results = []
+            # Use vector search results as fallback
+            vector_search_results = await self._vector_search_chunks(search_query)
+            if not vector_search_results:
+                return []
+            
+            # Convert chunks to search results with context window
+            for chunk in list(vector_search_results.values())[:search_query.limit]:
+                pre_n_chunks, chunk_obj, next_n_chunks = await asyncio.to_thread(
+                    self.repository.get_chunk_window, 
+                    chunk.chunk_metadata.artifact_id, 
+                    chunk.chunk_metadata.parent_artifact_id,
+                    chunk.chunk_metadata.chunk_index, 
+                    search_query.pre_n, 
+                    search_query.next_n
+                )
+                if chunk_obj:
+                    results.append(ChunkSearchResult(
+                        pre_n_chunks=pre_n_chunks, 
+                        chunk=chunk_obj,
+                        next_n_chunks=next_n_chunks, 
+                        score=1.0  # Default score for fallback
+                    ))
+            return results
+
+        # Fallback to vector search if reranker is not available (z)
+        if not self.reranker:
+            logger.warning("⚠️ Reranker is not available, using fallback mechanism")
+            return await _fallback_to_vector_search()
+
+        # 4. Rerank with error handling and fallback (z)
+        try:
+            artifacts_to_rerank = [
+                Artifact(
+                    artifact_id=chunk.chunk_id, content=chunk.content,
+                    artifact_type=ArtifactType.TEXT, metadata={'original_chunk': chunk}
+                ) for chunk in combined_chunks.values()
+            ]
+
+            reranked_results = await asyncio.to_thread(
+                self.reranker.run, search_query.query, artifacts_to_rerank, top_n=search_query.limit
+            )
+
+            if not reranked_results:
+                logger.warning("⚠️ Rerank returned empty results, using fallback mechanism")
+                return await _fallback_to_vector_search()
+                
+        except Exception as e:
+            logger.error(f"❌ Rerank failed with error: {e}, using fallback mechanism")
+            return await _fallback_to_vector_search()
+
+        # 5. Get context window for final results and format (z)
+        window_fetch_tasks = []
+        for rerank_result in reranked_results:
+            original_chunk: Chunk = rerank_result.artifact.metadata['original_chunk']
+            async def fetch_window(chunk, score):
+                pre_n, c, next_n = await asyncio.to_thread(
+                    self.repository.get_chunk_window, chunk.chunk_metadata.artifact_id, chunk.chunk_metadata.parent_artifact_id,
+                    chunk.chunk_metadata.chunk_index, search_query.pre_n, search_query.next_n
+                )
+                return ChunkSearchResult(
+                    pre_n_chunks=pre_n, chunk=c, next_n_chunks=next_n, score=score
+                )
+            window_fetch_tasks.append(fetch_window(original_chunk, rerank_result.score))
+
+        return await asyncio.gather(*window_fetch_tasks)
 
     async def search_fulltext(self, query: str, limit: int = 10, filter_types: Optional[List[ArtifactType]] = None) -> \
     Optional[list[FulltextSearchResult]]:
