@@ -69,9 +69,16 @@ async def rag_search(
                 
                 results = await response.json()
                 logger.info(f"Error during search: {results}")
-                content = f"Found {len(results)} results\n"
+                content = f"Found {len(results)} results\n <results>"
                 for i,result in enumerate(results):
-                    content += f"Result#{i} {result['chunk']['chunk_id']} \n {result['chunk']['content']}\n\n"
+                    content += (
+                        f"<artifact_chunk_result>"
+                        f"<artifact_chunk_id>{result['chunk']['chunk_id']}</artifact_chunk_id>"
+                        f"<artifact_chunk_content>{result['chunk']['content']}</artifact_chunk_content>"
+                        f"<artifact_id>{result['chunk']['chunk_metadata']['artifact_id']}</artifact_id>"
+                        f"</artifact_chunk_result>"
+                    )
+                content += "</results>"
                 await ctx.info(f"Found {len(results)} results")
                 return {"result": content}
     
