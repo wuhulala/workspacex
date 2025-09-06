@@ -25,7 +25,7 @@ class MCPConfig:
 @mcp.tool
 async def rag_search(
     query: str,
-    limit: int = 3,
+    limit: int = 10,
     ctx: Context = None
 ) -> Dict[str, Any]:
     """
@@ -33,7 +33,7 @@ async def rag_search(
     
     Args:
         query: The semantic search query text, please use a simple desc
-        limit: Maximum number of results to return (default: 3)
+        limit: Maximum number of results to return (default: 10， max： 25 min:5)
         ctx: MCP context (automatically injected)
         
     Returns:
