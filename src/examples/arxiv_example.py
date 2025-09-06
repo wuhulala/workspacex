@@ -187,12 +187,12 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     # arxiv_id = "2507.21509"
-    # arxiv_id = "2507.13334"
+    arxiv_id = "2507.13334"
     # asyncio.run(create_arxiv_artifact_s3_example(arxiv_id))
     # asyncio.run(retrieve_chunk(arxiv_id))
     # asyncio.run(rebuild_arxiv_artifact_index())
-    # asyncio.run(search_arxiv_chunks())
-    asyncio.run(create_arxiv_artifact())
+    asyncio.run(search_arxiv_chunks())
+    # asyncio.run(create_arxiv_artifact())
 
     # Uncomment the following line to test S3/MinIO integration
     # asyncio.run(create_novel_artifact_s3_example())

@@ -1,10 +1,12 @@
 import os
+import traceback
 from typing import Dict, Any
 
 import aiohttp
 from fastmcp import FastMCP, Context
 
-from workspacex.artifact import ArtifactType
+from workspacex.artifact import ArtifactType, ChunkSearchResult
+from workspacex.utils.logger import logger
 
 # 创建FastMCP实例
 mcp = FastMCP("WorkspaceX Remote RAG Tools 🔍")
@@ -30,7 +32,7 @@ async def rag_search(
     Search artifacts in the workspace using semantic search.
     
     Args:
-        query: The search query text
+        query: The semantic search query text, please use a simple desc
         limit: Maximum number of results to return (default: 3)
         ctx: MCP context (automatically injected)
         
@@ -51,12 +53,12 @@ async def rag_search(
         # 使用aiohttp进行异步HTTP请求
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{config.api_base}/api/v1/workspaces/{config.workspace_id}/search_artifacts",
+                f"{config.api_base}/api/v1/workspaces/{config.workspace_id}/search_artifact_chunks",
                 json={
                     "query": query,
                     "limit": limit,
                     "threshold": config.threshold,
-                    "filter_types": [t.value for t in artifact_types] if artifact_types else None
+                    # "filter_types": [t.value for t in artifact_types] if artifact_types else None
                 }
             ) as response:
                 status_code = response.status
@@ -66,14 +68,16 @@ async def rag_search(
                     return {"error": f"Search failed: {error_text}"}
                 
                 results = await response.json()
+                logger.info(f"Error during search: {results}")
                 content = f"Found {len(results)} results\n"
                 for i,result in enumerate(results):
-                    content += f"Result#{i} {result['artifact']['artifact_id']} \n {result['artifact']['content']}\n\n"
+                    content += f"Result#{i} {result['chunk']['chunk_id']} \n {result['chunk']['content']}\n\n"
                 await ctx.info(f"Found {len(results)} results")
                 return {"result": content}
     
     except Exception as e:
-        await ctx.error(f"Error during search: {str(e)}")
+        logger.error(f"Error during search: {str(e)}, trace is {traceback.format_exc()}")
+        await ctx.error(f"Error during search: {str(e)}, trace is {traceback.format_exc()}")
         return {"error": f"Search failed: {str(e)}"}
 
 if __name__ == "__main__":

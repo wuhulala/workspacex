@@ -1,17 +1,19 @@
+import asyncio
 import uuid
 import os
 from workspacex import Artifact, ArtifactType
 from workspacex.chunk.base import ChunkConfig
 from workspacex.chunk.character import CharacterChunker
 from workspacex.chunk.sentence import SentenceTokenChunker
+from workspacex.chunk.smart import SmartChunker
 
 
-def test_character(chapter_artifact: Artifact):
-    chunker = CharacterChunker(config=ChunkConfig(chunk_size=1000, chunk_overlap=50))
-    chunk_list = chunker.chunk(chapter_artifact)
+async def test_character(chapter_artifact: Artifact):
+    chunker = SmartChunker(config=ChunkConfig(chunk_size=1000, chunk_overlap=50))
+    chunk_list = await chunker.chunk(chapter_artifact)
     print(f"Chunk list: {len(chunk_list)}")
     for i, chunk in enumerate(chunk_list):
-        print(f"Chunk {i + 1}: {chunk.content[:100]}")
+        print(f"Chunk {i + 1}: {chunk.content}")
         print(f"Chunk metadata: {chunk.chunk_metadata}")
         print("=" * 40)
 
@@ -46,5 +48,7 @@ if __name__ == '__main__':
         parent_id=str(uuid.uuid4())
     )
 
-    # test_character(artifact)
-    test_sentence(artifact)
+    asyncio.run(test_character(artifact))
+
+
+    # test_sentence(artifact)

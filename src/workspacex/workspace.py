@@ -572,7 +572,7 @@ class WorkSpace(BaseModel):
                     artifact.after_chunker()
                     return chunks
                 else:
-                    logger.info(f"📦[EMBEDDING-CHUNKING] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
+                    logger.info(f"📦[CHUNKING] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} chunks is empty")
                     return []
             except Exception as e:
                 logger.error(f"📦[CHUNKING] store_artifact[{artifact.artifact_type}]:{artifact.artifact_id} failed: {e}\n traceback is {traceback.format_exc()}")
@@ -595,18 +595,23 @@ class WorkSpace(BaseModel):
 
     async def rebuild_artifact_index(self, artifact: Artifact):
        logger.info(f"📦[REBUILD_ARTIFACT_INDEX]✅ start rebuild_artifact_index ->[{artifact.artifact_type}]:{artifact.artifact_id}")
+       # rebuild [CHUNK -> embedding]
+       # rebuild [      -> fulltext]
        await self._chunk_and_embedding(artifact)
+
+       # rebuild sub_list
+       for sub_artifact in tqdm(artifact.sublist, f"[{artifact.artifact_id}-SUBLIST]rebuild_artifact_index"):
+           await self.rebuild_artifact_index(sub_artifact)
+
        logger.info(f"📦[REBUILD_ARTIFACT_INDEX]✅ rebuild_artifact_index finished -> [{artifact.artifact_type}]:{artifact.artifact_id} ")
 
-    async def rebuild_artifact_embedding(self, artifact: Artifact, chunks: list[Chunk] = None):
+    async def rebuild_artifact_embedding(self, artifact: Artifact):
         await self._rebuild_artifact_embedding(artifact)
         for sub_artifact in tqdm(artifact.sublist, f"artifact_rebuild_embedding_sublist#{artifact.artifact_id}"):
             await self._rebuild_artifact_embedding(sub_artifact)
 
     async def _rebuild_artifact_embedding(self, artifact: Artifact, chunks: list[Chunk] = None):
         if not self.workspace_config.embedding_config.enabled:
-            return
-        if not chunks:
             return
 
         self.vector_db.delete(self.default_vector_collection, filter={"artifact_id": artifact.artifact_id})
@@ -721,11 +726,9 @@ class WorkSpace(BaseModel):
         if not self.fulltext_db:
             logger.warning(f"📦[FULLTEXT]⚠️ fulltext_db is not enabled for artifact {artifact.artifact_id}")
             return
-        if not chunks:
-            return
             
         # Delete existing full-text data for this artifact
-        self.fulltext_db.delete(self.workspace_id, filter={"artifact_id": artifact.artifact_id})
+        self.fulltext_db.delete(self.full_text_index, filter={"artifact_id": artifact.artifact_id})
         logger.info(f"📦[FULLTEXT]✅ delete_fulltext[{artifact.artifact_type}]:{artifact.artifact_id} finished")
         chunkable = artifact.get_metadata_value("chunkable")
         if chunkable and self.workspace_config.fulltext_db_config.config.get('use_chunk', True):
@@ -1226,7 +1229,7 @@ class WorkSpace(BaseModel):
             # Perform full-text search
             search_results = await asyncio.to_thread(
                 self.fulltext_db.search,
-                self.workspace_id,
+                self.full_text_index,
                 query,
                 filter=filter_dict,
                 limit=limit,

@@ -9,7 +9,7 @@ from workspacex.artifact import Artifact, Chunk, ChunkMetadata
 class ChunkConfig(BaseModel):
     enabled: bool = Field(default=False, description=" ") 
     provider: str = Field(default="character", description="Text splitter")
-    chunk_size: int = Field(default=1000, description="Chunk size")
+    chunk_size: int = Field(default=512, description="Chunk size")
     chunk_overlap: int = Field(default=100, description="Chunk overlap")
     chunk_separator: str = Field(default="\n", description="Chunk separator")
     chunk_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", description="Chunk model")
@@ -33,7 +33,7 @@ class Chunker(ABC):
     """Chunk service interface"""
 
     @abstractmethod
-    def chunk(self, artifact: Artifact) -> list[Chunk]:
+    async def chunk(self, artifact: Artifact) -> list[Chunk]:
         pass
 
 class ChunkerBase(Chunker, BaseModel):
@@ -71,6 +71,9 @@ class ChunkerFactory:
         if config.provider == "character":
             from .character import CharacterChunker
             return CharacterChunker(config)
+        elif config.provider == "smart":
+            from .smart import SmartChunker
+            return SmartChunker(config)
         elif config.provider == "sentence_token":
             from .sentence import SentenceTokenChunker
             return SentenceTokenChunker(config)

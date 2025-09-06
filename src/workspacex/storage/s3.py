@@ -153,7 +153,7 @@ class S3Repository(BaseRepository):
                 self.fs.mkdirs(sub_dir, exist_ok=True)
             sub_meta = sub.to_dict()
             if save_sub_list_content:
-                if sub_type == ArtifactType.TEXT:
+                if sub_type in [ArtifactType.NOVEL_CHAPTER, ArtifactType.TEXT]:
                     content = sub.content
                     data_path = self._full_path(
                         self._sub_data_path(artifact_id, sub_id, ext="txt"))

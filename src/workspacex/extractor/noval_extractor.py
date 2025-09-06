@@ -1,6 +1,6 @@
 import os
 from typing import Any, List, Optional
-from workspacex.artifact import Artifact, ArtifactType
+from workspacex.artifact import Artifact, ArtifactType, AttachmentFile
 from workspacex.extractor.base import BaseExtractor
 
 
@@ -30,6 +30,7 @@ class NovalExtractor(BaseExtractor):
                 content=chapter,
                 metadata=sub_meta
             )
+            sub_artifact.mark_complete()
             artifacts.append(sub_artifact)
         return artifacts
 

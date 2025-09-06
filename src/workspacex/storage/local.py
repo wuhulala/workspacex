@@ -147,7 +147,7 @@ class LocalPathRepository(BaseRepository):
             sub_meta = sub.to_dict()
             # TODO add ext
             if save_sub_list_content:
-                if sub_type == ArtifactType.TEXT:
+                if sub_type in [ArtifactType.NOVEL_CHAPTER, ArtifactType.TEXT]:
                     content = sub.content
                     data_path = self._full_path(self._sub_data_path(artifact_id, sub_id, ext="txt"))
                     with open(data_path, "w", encoding="utf-8") as f:

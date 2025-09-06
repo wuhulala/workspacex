@@ -348,7 +348,6 @@ class Artifact(BaseModel):
     def after_chunker(self):
         pass
 
-
 class SummaryArtifact(Artifact):
 
     origin_artifact: Artifact = Field(default=None)
